@@ -1,0 +1,3 @@
+# No runtime dependencies — standard library only.
+# For development/tests:
+#   pip install pytest
