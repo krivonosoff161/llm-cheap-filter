@@ -68,7 +68,8 @@ class Pipeline:
         self.policy = policy
         self.cheap_call = cheap_call
         self.chief_call = chief_call
-        self._sem = asyncio.Semaphore(max(1, concurrency))
+        self._concurrency = max(1, concurrency)
+        self._sem = None   # asyncio.Semaphore created lazily in run() (bound to the active loop; 3.9-safe)
 
     async def _llm_stages(self, text: str, base_score: float) -> ItemResult:
         async with self._sem:
@@ -87,6 +88,7 @@ class Pipeline:
         return ItemResult(text, "chief", score, verdict, None, tok + tok2, cost + cost2)
 
     async def run(self, items) -> Report:
+        self._sem = asyncio.Semaphore(self._concurrency)   # create inside the running loop (3.9-safe)
         # Pass 1: prefilter sequentially (0 tokens) so dedup 'seen' grows in order.
         seen: list[str] = []
         plan: list[tuple[str, bool, float, str | None]] = []
