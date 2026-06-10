@@ -1,0 +1,88 @@
+# Project map — for reviewers and maintainers
+
+## What it does
+
+`llm-cheap-filter` is a three-stage triage pipeline for text streams:
+deterministic rules drop obvious noise for free, a *cheap* LLM scores the
+survivors, and an explicit policy escalates only the few high-signal items to
+an *expensive* LLM. The goal is one number: a low `chief_rate` without losing
+the items that mattered.
+
+## Mental model
+
+```
+items ─► PreFilter (pure rules, 0 tokens) ─► cheap_call (injected) ─►
+        EscalationPolicy (pure rules)     ─► chief_call (injected, few items)
+                                          └► Report (per-item + cost summary)
+```
+
+Two design commitments hold everything together:
+
+1. **Determinism where possible** — the first and third stages are pure code,
+   so the only non-determinism is the two callables *you* inject.
+2. **Zero dependencies** — stdlib only (`asyncio`, `dataclasses`, `difflib`).
+
+## Key modules
+
+| File | Role | Size |
+|---|---|---|
+| `src/llm_cheap_filter/prefilter.py` | rule gate: noise substrings, keep-keywords, min length, fuzzy dedup | ~50 lines |
+| `src/llm_cheap_filter/policy.py` | `drop / cheap / chief` decision from score + flag; validates its own thresholds | ~45 lines |
+| `src/llm_cheap_filter/pipeline.py` | orchestration: sequential prefilter, concurrent LLM stages (semaphore-capped), tallying | ~115 lines |
+| `tests/test_pipeline.py` | 9 offline tests incl. policy bounds and a concurrency-cap proof | ~130 lines |
+| `examples/` | offline demo (no keys) + llm-router wiring — see [examples/README.md](../examples/README.md) | small |
+
+## What exists today
+
+- The full drop → cheap → chief pipeline with per-item results and a summary
+  (`items_in / filtered_free / ended_cheap / escalated_chief / total_tokens /
+  total_cost / chief_rate`).
+- Concurrency cap via `asyncio.Semaphore` (tested: peak in-flight never exceeds it).
+- `EscalationPolicy` fails fast on inconsistent thresholds
+  (`drop_if_score_below` must be `< escalate_if_score_at_least`, both in 0..1).
+- Typed injection points: `CheapCall = (text) -> (judgment, usage)`,
+  `ChiefCall = (text, judgment) -> (decision, usage)`.
+
+## What is NOT included (by design)
+
+- No LLM client, prompts, or parsing — you own both callables (pair with
+  [llm-router](https://github.com/krivonosoff161/llm-router) or anything else).
+- No persistence, queues, retries of the callables, or streaming input —
+  `run()` takes an iterable and returns a report.
+- No domain scoring model: the "score" is whatever your cheap stage returns.
+
+## How to inspect without reading every line
+
+1. Run `python examples/offline_demo.py` — the printed table *is* the behavior.
+2. Read `policy.py` (the decision is 8 lines).
+3. Skim `pipeline.py::run()` — two passes, one semaphore, no hidden state.
+
+## How to run checks
+
+```bash
+python -m pytest -q               # 9 offline tests, no network
+python -m ruff check .
+python examples/offline_demo.py   # deterministic, no keys
+```
+
+CI runs pytest on Python 3.9 / 3.11 / 3.12.
+
+## How to extend safely
+
+- New rule: add it inside `PreFilter.score()` with a distinct `reason` string
+  and a test; keep it pure (no I/O).
+- New policy input: extend `decide(score, flagged)` conservatively — every new
+  branch needs a test in `test_policy_decisions` style.
+- Replacing `difflib` dedup for big streams: keep the
+  `score(text, seen) -> PreVerdict` contract and swap the internals.
+- Do **not** make the pipeline call providers directly — the injected-callable
+  boundary is the whole point.
+
+## Reviewer checklist (for future changes, incl. agent-generated)
+
+- [ ] Still zero runtime dependencies (`pyproject.toml` `dependencies = []`).
+- [ ] `PreVerdict` / `ItemResult` / `Report.summary` keys unchanged (public surface).
+- [ ] Every dropped item carries a `reason` — no silent drops.
+- [ ] Policy thresholds still validated in `__post_init__`.
+- [ ] Concurrency test still proves the cap (peak ≤ limit).
+- [ ] README demo output still matches `examples/offline_demo.py` actual output.
