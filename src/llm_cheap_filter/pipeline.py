@@ -13,9 +13,16 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 from .policy import CHIEF, DROP, EscalationPolicy
 from .prefilter import PreFilter
+
+# Injected LLM callables (any client or an offline fake):
+#   cheap_call(text)            -> (judgment dict, usage dict)
+#   chief_call(text, judgment)  -> (decision dict, usage dict)
+CheapCall = Callable[[str], Awaitable["tuple[dict, dict]"]]
+ChiefCall = Callable[[str, dict], Awaitable["tuple[dict, dict]"]]
 
 
 @dataclass
@@ -63,7 +70,7 @@ class Pipeline:
     """Triage a stream of text items, spending the expensive model only on candidates."""
 
     def __init__(self, prefilter: PreFilter, policy: EscalationPolicy,
-                 cheap_call, chief_call, *, concurrency: int = 8):
+                 cheap_call: CheapCall, chief_call: ChiefCall, *, concurrency: int = 8):
         self.prefilter = prefilter
         self.policy = policy
         self.cheap_call = cheap_call

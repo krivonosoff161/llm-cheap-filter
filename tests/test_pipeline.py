@@ -85,3 +85,42 @@ def test_pipeline_empty():
     pipe = Pipeline(PreFilter(), EscalationPolicy(), _fake_cheap, _fake_chief)
     report = asyncio.run(pipe.run([]))
     assert report.summary["items_in"] == 0 and report.summary["chief_rate"] == 0.0
+
+
+# ── policy bounds ────────────────────────────────────────────────────────────
+def test_policy_validates_threshold_bounds():
+    import pytest
+
+    with pytest.raises(ValueError):
+        EscalationPolicy(escalate_if_score_at_least=0.5, drop_if_score_below=0.8)  # drop >= escalate
+    with pytest.raises(ValueError):
+        EscalationPolicy(drop_if_score_below=-0.1)                                  # below 0
+    with pytest.raises(ValueError):
+        EscalationPolicy(escalate_if_score_at_least=1.5)                            # above 1
+    EscalationPolicy()                                                               # defaults are valid
+
+
+# ── concurrency cap ──────────────────────────────────────────────────────────
+def test_pipeline_respects_concurrency_cap():
+    in_flight = 0
+    peak = 0
+
+    async def slow_cheap(text):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0.002)        # hold the slot so overlap is observable
+        in_flight -= 1
+        return {"score": 0.9}, {"total_tokens": 1}
+
+    async def fast_chief(text, judgment):
+        return {"verdict": "ACT"}, {"total_tokens": 1}
+
+    pipe = Pipeline(PreFilter(min_chars=1, dedup_threshold=100), EscalationPolicy(),
+                    slow_cheap, fast_chief, concurrency=3)
+    items = [f"important distinct item number {i}" for i in range(20)]
+    report = asyncio.run(pipe.run(items))
+
+    assert report.summary["escalated_chief"] == 20   # все прошли весь путь
+    assert peak <= 3                                  # семафор держит кап
+    assert peak >= 2                                  # и параллелизм реально был

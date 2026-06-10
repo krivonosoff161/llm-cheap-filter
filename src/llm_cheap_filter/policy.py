@@ -22,6 +22,16 @@ class EscalationPolicy:
     escalate_if_flagged: bool = True
     drop_if_score_below: float = 0.2
 
+    def __post_init__(self) -> None:
+        # scores are 0..1 by convention; a drop threshold at/above the escalate
+        # threshold would silently shadow one of the branches — fail fast instead
+        if not (0.0 <= self.drop_if_score_below < self.escalate_if_score_at_least <= 1.0):
+            raise ValueError(
+                "EscalationPolicy requires 0.0 <= drop_if_score_below < "
+                "escalate_if_score_at_least <= 1.0 "
+                f"(got drop={self.drop_if_score_below}, escalate={self.escalate_if_score_at_least})"
+            )
+
     def decide(self, score: float, flagged: bool = False) -> str:
         if self.escalate_if_flagged and flagged:
             return CHIEF
