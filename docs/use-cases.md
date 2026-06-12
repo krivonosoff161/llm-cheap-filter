@@ -8,7 +8,7 @@ every item is the main line of the bill.
 
 ## The problem it solves
 
-Three separate cost leaks, one per stage:
+Four separate operational problems:
 
 1. Obvious noise (ads, recaps, duplicates) reaching *any* model → solved by
    free deterministic rules.
@@ -16,6 +16,8 @@ Three separate cost leaks, one per stage:
    scoring pass.
 3. No visibility into what was spent and why → solved by the per-item report
    and cost summary.
+4. No evidence that thresholds are safe enough → addressed by offline
+   calibration against labeled samples.
 
 ## Practical workflows
 
@@ -41,6 +43,12 @@ Even with a single provider and no "chief" stage, `PreFilter` alone typically
 removes a large share of items before the first token is paid — and the
 report tells you exactly how many.
 
+**5. Threshold calibration.**
+Record cheap-stage scores and later labels (`should_escalate=True/False`), then
+use `calibrate_thresholds(...)` to compare chief rate, false accepts, false
+escalates, precision, and recall. This is the difference between "we lowered
+cost" and "we measured what lowering cost risks."
+
 ## What this is not
 
 - **Not a correctness oracle.** The pipeline routes items; it does not make
@@ -55,7 +63,8 @@ report tells you exactly how many.
 
 - A miscalibrated cheap stage can discard real signal: `drop_if_score_below`
   filters items the cheap model under-scores. Start permissive, watch the
-  per-item report and reasons, then tighten later.
+  per-item report and reasons, then tighten later. A lower `chief_rate` is not
+  automatically better if false accepts rise.
 - `difflib` dedup is O(survivors × seen) per item — fine for headline streams,
   not for millions of long documents.
 - The summary's `total_cost` is whatever your callables report in `usage`;

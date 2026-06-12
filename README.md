@@ -5,9 +5,14 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 ![deps: none](https://img.shields.io/badge/runtime%20deps-0-brightgreen.svg)
 
-**Don't send every item to your LLM.** Drop obvious noise for free with rules, judge the rest with a *cheap* model, and escalate only the few that matter to an *expensive* one. A small, **zero-dependency** triage pipeline for agentic systems.
+**Don't send every item to your LLM.** Drop obvious noise for free with rules,
+judge the rest with a *cheap* model, and escalate only the few that matter to an
+*expensive* one. A small, **zero-dependency** triage pipeline for agentic systems.
 
-> Extracted and generalized from a production news scanner that ingests hundreds of items per scan but only sends a small fraction to its expensive "chief" model. The pattern — *deterministic filter → cheap → chief* — is the single biggest lever on agentic LLM cost.
+> Extracted and generalized from a production news scanner that ingests hundreds of items
+> per scan but only sends a small fraction to its expensive "chief" model. The pattern —
+> *deterministic filter → cheap → chief* — is one of the biggest levers on agentic LLM
+> cost, but only if you measure what it drops and escalates.
 
 ---
 
@@ -64,6 +69,9 @@ summary: {'items_in': 9, 'filtered_free': 5, 'ended_cheap': 1, 'escalated_chief'
 - **PreFilter** — pure rules (0 tokens): drop noise substrings, require keep-keywords, min length, near-duplicate dedup (stdlib `difflib`).
 - **EscalationPolicy** — pure rules: `drop` / keep-`cheap` / escalate-`chief` from the cheap stage's score + flags.
 - **Pipeline** — runs the stages, caps concurrency, and returns a per-item report + a cost/savings summary.
+- **Savings report** — estimate actual tokens/cost against an all-chief counterfactual.
+- **Threshold calibration** — sweep cheap-stage thresholds against labeled outcomes and
+  measure false accepts / false escalates before tightening.
 - **Bring your own LLM** — inject `cheap_call` / `chief_call`; nothing is hardcoded to a provider.
 - **Zero runtime dependencies** — standard library only. Fully testable offline.
 
@@ -108,6 +116,32 @@ print(report.summary)
 
 Pair it with [`llm-router`](https://github.com/krivonosoff161/llm-router) for the real calls — see [examples/with_llm_router.py](examples/with_llm_router.py).
 
+### Measure savings
+
+```python
+from llm_cheap_filter import build_savings_report
+
+savings = build_savings_report(report, chief_tokens_per_item=60, chief_cost_per_item=0.006)
+print(savings.as_dict())
+```
+
+### Calibrate thresholds
+
+```python
+from llm_cheap_filter import calibrate_thresholds
+
+points = calibrate_thresholds(
+    scores=[0.95, 0.70, 0.45, 0.20],
+    should_escalate=[True, False, True, False],
+    thresholds=(0.4, 0.6, 0.8),
+)
+for point in points:
+    print(point.as_dict())
+```
+
+Use calibration before tightening thresholds. A lower chief rate is not a win if false
+accepts increase.
+
 ---
 
 ## How it works
@@ -119,6 +153,11 @@ Pair it with [`llm-router`](https://github.com/krivonosoff161/llm-router) for th
 `flagged` or `score ≥ escalate_if_score_at_least` → **chief**; `score < drop_if_score_below` → **drop**; otherwise keep the **cheap** result.
 
 **Pipeline** (`pipeline.py`) — prefilter sequentially (free), then run survivors through the LLM stages concurrently (capped by `concurrency`). `report.summary` gives `items_in / filtered_free / ended_cheap / escalated_chief / errors / total_tokens / total_cost / chief_rate`.
+
+**Analysis helpers** (`analysis.py`) — offline helpers for already-recorded outputs:
+`build_savings_report(report)` estimates actual spend against an all-chief counterfactual,
+and `calibrate_thresholds(scores, should_escalate)` sweeps cheap-stage thresholds to show
+chief rate, false accepts, false escalates, precision, and recall.
 
 ### Injected callables
 

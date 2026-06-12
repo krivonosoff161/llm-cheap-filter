@@ -29,6 +29,7 @@ Two design commitments hold everything together:
 | `src/llm_cheap_filter/prefilter.py` | rule gate: noise substrings, keep-keywords, min length, fuzzy dedup | ~50 lines |
 | `src/llm_cheap_filter/policy.py` | `drop / cheap / chief` decision from score + flag; validates its own thresholds | ~45 lines |
 | `src/llm_cheap_filter/pipeline.py` | orchestration: sequential prefilter, concurrent LLM stages (semaphore-capped), tallying | ~115 lines |
+| `src/llm_cheap_filter/analysis.py` | offline savings report and threshold calibration helpers | ~170 lines |
 | `tests/test_pipeline.py` | offline tests incl. policy bounds, dedup normalization, callable errors, and concurrency cap | ~190 lines |
 | `examples/` | offline demo (no keys) + llm-router wiring — see [examples/README.md](../examples/README.md) | small |
 
@@ -42,6 +43,10 @@ Two design commitments hold everything together:
   (`drop_if_score_below` must be `< escalate_if_score_at_least`, both in 0..1).
 - Typed injection points: `CheapCall = (text) -> (judgment, usage)`,
   `ChiefCall = (text, judgment) -> (decision, usage)`.
+- Offline analysis helpers:
+  - `build_savings_report(report)` estimates actual spend vs an all-chief baseline;
+  - `calibrate_thresholds(scores, should_escalate)` measures chief rate, false accepts,
+    false escalates, precision, and recall for candidate thresholds.
 
 ## What is NOT included (by design)
 
@@ -58,6 +63,7 @@ Two design commitments hold everything together:
 1. Run `python examples/offline_demo.py` — the printed table *is* the behavior.
 2. Read `policy.py` (the decision is 8 lines).
 3. Skim `pipeline.py::run()` — two passes, one semaphore, no hidden state.
+4. Skim `analysis.py` — no LLM calls, only report arithmetic and threshold sweeps.
 
 ## How to run checks
 
@@ -75,6 +81,8 @@ CI runs pytest and ruff on Python 3.9 / 3.11 / 3.12 across Ubuntu and Windows.
   and a test; keep it pure (no I/O).
 - New policy input: extend `decide(score, flagged)` conservatively — every new
   branch needs a test in `test_policy_decisions` style.
+- New calibration metric: keep it offline and derived from already-recorded labels /
+  scores; it must not call models or decide truth by itself.
 - Replacing `difflib` dedup for big streams: keep the
   `score(text, seen) -> PreVerdict` contract and swap the internals.
 - Do **not** make the pipeline call providers directly — the injected-callable
@@ -88,3 +96,4 @@ CI runs pytest and ruff on Python 3.9 / 3.11 / 3.12 across Ubuntu and Windows.
 - [ ] Policy thresholds still validated in `__post_init__`.
 - [ ] Concurrency test still proves the cap (peak ≤ limit).
 - [ ] README demo output still matches `examples/offline_demo.py` actual output.
+- [ ] Calibration docs still say lower chief-rate is not automatically better.

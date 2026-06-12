@@ -16,10 +16,14 @@ drop reason) and a summary dict — 5 of 9 items never touch an LLM, 3 reach the
 chief stage. The output is deterministic; the README quotes it verbatim.
 
 **The lesson:** most of the savings come from the free rule stage, and the
-report shows *why* every item went where it went — no silent drops.
+report shows *why* every item went where it went — no silent drops. Use
+`build_savings_report(report, ...)` when you want a counterfactual estimate
+against "send every item to chief."
 
 **What it does NOT prove:** that the fake scores resemble your model's scores.
-The demo demonstrates *routing mechanics*, not judgment quality.
+The demo demonstrates *routing mechanics*, not judgment quality. Use
+`calibrate_thresholds(...)` with your own labeled samples before tightening
+thresholds on real streams.
 
 ## with_llm_router.py
 
