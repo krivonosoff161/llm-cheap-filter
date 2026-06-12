@@ -3,7 +3,7 @@
 [![Tests](https://github.com/krivonosoff161/llm-cheap-filter/actions/workflows/tests.yml/badge.svg)](https://github.com/krivonosoff161/llm-cheap-filter/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
-[![deps: none](https://img.shields.io/badge/runtime%20deps-0-brightgreen.svg)](#)
+![deps: none](https://img.shields.io/badge/runtime%20deps-0-brightgreen.svg)
 
 **Don't send every item to your LLM.** Drop obvious noise for free with rules, judge the rest with a *cheap* model, and escalate only the few that matter to an *expensive* one. A small, **zero-dependency** triage pipeline for agentic systems.
 
@@ -52,10 +52,10 @@ python examples/offline_demo.py
   [cheap   ] Quiet trading day, nothing notable              score=0.40
 
 summary: {'items_in': 9, 'filtered_free': 5, 'ended_cheap': 1, 'escalated_chief': 3,
-          'total_tokens': 228, 'total_cost': 0.0188, 'chief_rate': 0.333}
+          'errors': 0, 'total_tokens': 228, 'total_cost': 0.0188, 'chief_rate': 0.333}
 ```
 
-5 of 9 items never touched an LLM; only 3 reached the expensive model. On real, noisy feeds the chief rate is typically a few percent.
+5 of 9 items never touched an LLM; only 3 reached the expensive model. On noisy feeds like the one this was extracted from, the chief rate dropped to single-digit percents; your result depends on thresholds, source quality, and data.
 
 ---
 
@@ -77,7 +77,7 @@ cd llm-cheap-filter
 pip install -e .
 ```
 
-Requires **Python 3.9+**. Verified on Windows; pure-Python, so Linux/macOS should work.
+Requires **Python 3.9+**. CI covers Ubuntu and Windows; the package is pure Python and has no runtime dependencies.
 
 ---
 
@@ -118,7 +118,7 @@ Pair it with [`llm-router`](https://github.com/krivonosoff161/llm-router) for th
 **EscalationPolicy** (`policy.py`) — given the cheap score + `flagged`:
 `flagged` or `score ≥ escalate_if_score_at_least` → **chief**; `score < drop_if_score_below` → **drop**; otherwise keep the **cheap** result.
 
-**Pipeline** (`pipeline.py`) — prefilter sequentially (free), then run survivors through the LLM stages concurrently (capped by `concurrency`). `report.summary` gives `items_in / filtered_free / ended_cheap / escalated_chief / total_tokens / total_cost / chief_rate`.
+**Pipeline** (`pipeline.py`) — prefilter sequentially (free), then run survivors through the LLM stages concurrently (capped by `concurrency`). `report.summary` gives `items_in / filtered_free / ended_cheap / escalated_chief / errors / total_tokens / total_cost / chief_rate`.
 
 ### Injected callables
 
@@ -126,7 +126,7 @@ Pair it with [`llm-router`](https://github.com/krivonosoff161/llm-router) for th
 cheap_call(text)            -> (judgment: dict with 'score' [+ 'flagged'], usage: dict)
 chief_call(text, judgment)  -> (decision: dict, usage: dict)
 ```
-`usage` may carry `total_tokens` and `cost_usd` (or `cost`); both are tallied.
+`usage` may carry `total_tokens` and `cost_usd` (or `cost`); both are tallied. Invalid usage values are reported as per-item `error` results instead of failing the whole batch.
 
 ---
 
@@ -149,7 +149,9 @@ python -m pytest -q     # offline, fake LLM, no network
 ## Limitations / non-goals
 
 - Text items in, structured judgments out — not a full agent framework.
+- This is a library, not a CLI tool; the scripts in `examples/` are runnable demos.
 - The cheap stage must return a `score`; you own the prompt/parsing (the example shows JSON-mode parsing).
+- A miscalibrated cheap stage can filter out important items. Start with permissive thresholds, replay against labeled samples, and use the per-item reasons before tightening.
 - Dedup uses `difflib` (good for headlines/short text); for very large streams swap in your own near-duplicate check.
 - It controls *which* items reach the expensive model — it does not implement the models themselves.
 

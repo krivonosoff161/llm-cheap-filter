@@ -53,9 +53,9 @@ report tells you exactly how many.
 
 ## Limitations and residual risk
 
-- A miscalibrated cheap stage silently drops real signal: `drop_if_score_below`
-  discards items the cheap model under-scores. Start permissive, watch the
-  per-item report, tighten later.
+- A miscalibrated cheap stage can discard real signal: `drop_if_score_below`
+  filters items the cheap model under-scores. Start permissive, watch the
+  per-item report and reasons, then tighten later.
 - `difflib` dedup is O(survivors × seen) per item — fine for headline streams,
   not for millions of long documents.
 - The summary's `total_cost` is whatever your callables report in `usage`;

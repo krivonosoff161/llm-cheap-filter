@@ -29,14 +29,14 @@ Two design commitments hold everything together:
 | `src/llm_cheap_filter/prefilter.py` | rule gate: noise substrings, keep-keywords, min length, fuzzy dedup | ~50 lines |
 | `src/llm_cheap_filter/policy.py` | `drop / cheap / chief` decision from score + flag; validates its own thresholds | ~45 lines |
 | `src/llm_cheap_filter/pipeline.py` | orchestration: sequential prefilter, concurrent LLM stages (semaphore-capped), tallying | ~115 lines |
-| `tests/test_pipeline.py` | 9 offline tests incl. policy bounds and a concurrency-cap proof | ~130 lines |
+| `tests/test_pipeline.py` | offline tests incl. policy bounds, dedup normalization, callable errors, and concurrency cap | ~190 lines |
 | `examples/` | offline demo (no keys) + llm-router wiring — see [examples/README.md](../examples/README.md) | small |
 
 ## What exists today
 
 - The full drop → cheap → chief pipeline with per-item results and a summary
   (`items_in / filtered_free / ended_cheap / escalated_chief / total_tokens /
-  total_cost / chief_rate`).
+  errors / total_cost / chief_rate`).
 - Concurrency cap via `asyncio.Semaphore` (tested: peak in-flight never exceeds it).
 - `EscalationPolicy` fails fast on inconsistent thresholds
   (`drop_if_score_below` must be `< escalate_if_score_at_least`, both in 0..1).
@@ -49,6 +49,8 @@ Two design commitments hold everything together:
   [llm-router](https://github.com/krivonosoff161/llm-router) or anything else).
 - No persistence, queues, retries of the callables, or streaming input —
   `run()` takes an iterable and returns a report.
+- Callable exceptions are isolated per item as `stage="error"` results; the
+  pipeline does not retry provider/client failures.
 - No domain scoring model: the "score" is whatever your cheap stage returns.
 
 ## How to inspect without reading every line
@@ -60,12 +62,12 @@ Two design commitments hold everything together:
 ## How to run checks
 
 ```bash
-python -m pytest -q               # 9 offline tests, no network
+python -m pytest -q               # offline tests, no network
 python -m ruff check .
 python examples/offline_demo.py   # deterministic, no keys
 ```
 
-CI runs pytest on Python 3.9 / 3.11 / 3.12.
+CI runs pytest and ruff on Python 3.9 / 3.11 / 3.12 across Ubuntu and Windows.
 
 ## How to extend safely
 

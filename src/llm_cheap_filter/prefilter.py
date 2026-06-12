@@ -44,6 +44,6 @@ class PreFilter:
             return PreVerdict(False, 0.0, "no_keyword")
         if self.dedup_threshold:
             for prev in seen:
-                if SequenceMatcher(None, low, prev.lower()).ratio() * 100 >= self.dedup_threshold:
+                if SequenceMatcher(None, low, prev).ratio() * 100 >= self.dedup_threshold:
                     return PreVerdict(False, 0.0, "duplicate")
         return PreVerdict(True, self.base_score, None)

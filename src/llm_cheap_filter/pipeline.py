@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Iterable
 
 from .policy import CHIEF, DROP, EscalationPolicy
 from .prefilter import PreFilter
@@ -28,7 +28,7 @@ ChiefCall = Callable[[str, dict], Awaitable["tuple[dict, dict]"]]
 @dataclass
 class ItemResult:
     item: str
-    stage: str                  # "filtered" | "cheap" | "chief"
+    stage: str                  # "filtered" | "cheap" | "chief" | "error"
     score: float
     decision: dict | None = None
     reason: str | None = None
@@ -38,12 +38,12 @@ class ItemResult:
 
 @dataclass
 class Report:
-    results: list
+    results: list[ItemResult]
 
     @property
     def summary(self) -> dict:
         n = len(self.results)
-        by = {"filtered": 0, "cheap": 0, "chief": 0}
+        by = {"filtered": 0, "cheap": 0, "chief": 0, "error": 0}
         tokens = 0
         cost = 0.0
         for r in self.results:
@@ -55,6 +55,7 @@ class Report:
             "filtered_free": by["filtered"],   # dropped by rules, 0 tokens
             "ended_cheap": by["cheap"],        # judged by the cheap model only
             "escalated_chief": by["chief"],    # reached the expensive model
+            "errors": by["error"],             # callable failures isolated to one item
             "total_tokens": tokens,
             "total_cost": round(cost, 6),
             "chief_rate": round(by["chief"] / n, 3) if n else 0.0,
@@ -63,7 +64,9 @@ class Report:
 
 def _usage(u: dict | None) -> tuple[int, float]:
     u = u or {}
-    return int(u.get("total_tokens", 0) or 0), float(u.get("cost_usd", u.get("cost", 0)) or 0)
+    tokens = u.get("total_tokens", 0)
+    cost = u.get("cost_usd") if "cost_usd" in u else u.get("cost", 0)
+    return int(tokens), float(cost)
 
 
 class Pipeline:
@@ -76,10 +79,9 @@ class Pipeline:
         self.cheap_call = cheap_call
         self.chief_call = chief_call
         self._concurrency = max(1, concurrency)
-        self._sem = None   # asyncio.Semaphore created lazily in run() (bound to the active loop; 3.9-safe)
 
-    async def _llm_stages(self, text: str, base_score: float) -> ItemResult:
-        async with self._sem:
+    async def _llm_stages(self, text: str, base_score: float, sem: asyncio.Semaphore) -> ItemResult:
+        async with sem:
             judgment, u1 = await self.cheap_call(text)
         tok, cost = _usage(u1)
         score = float(judgment.get("score", base_score))
@@ -89,13 +91,13 @@ class Pipeline:
             return ItemResult(text, "cheap", score, judgment, "below_threshold", tok, cost)
         if decision != CHIEF:
             return ItemResult(text, "cheap", score, judgment, None, tok, cost)
-        async with self._sem:
+        async with sem:
             verdict, u2 = await self.chief_call(text, judgment)
         tok2, cost2 = _usage(u2)
         return ItemResult(text, "chief", score, verdict, None, tok + tok2, cost + cost2)
 
-    async def run(self, items) -> Report:
-        self._sem = asyncio.Semaphore(self._concurrency)   # create inside the running loop (3.9-safe)
+    async def run(self, items: Iterable[str]) -> Report:
+        sem = asyncio.Semaphore(self._concurrency)   # create inside the running loop (3.9-safe)
         # Pass 1: prefilter sequentially (0 tokens) so dedup 'seen' grows in order.
         seen: list[str] = []
         plan: list[tuple[str, bool, float, str | None]] = []
@@ -103,13 +105,16 @@ class Pipeline:
             pv = self.prefilter.score(text, seen)
             plan.append((text, pv.keep, pv.score, pv.reason))
             if pv.keep:
-                seen.append(text)
+                seen.append((text or "").lower().strip())
 
         # Pass 2: LLM stages only for survivors, concurrently (capped by semaphore).
         async def handle(text, keep, base_score, reason):
             if not keep:
                 return ItemResult(text, "filtered", 0.0, reason=reason)
-            return await self._llm_stages(text, base_score)
+            try:
+                return await self._llm_stages(text, base_score, sem)
+            except Exception as exc:  # keep batch-level triage resilient to one bad callable result
+                return ItemResult(text, "error", base_score, reason=f"{type(exc).__name__}: {exc}")
 
         results = await asyncio.gather(*(handle(*p) for p in plan))
         return Report(list(results))
