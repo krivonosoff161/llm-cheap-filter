@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Docs
+
+- Added a calibration/replay guide for labeled samples, false accepts, false
+  escalates, savings reports, and risk artifacts.
+
 ## [0.1.0] - 2026-06-12
 
 ### Added

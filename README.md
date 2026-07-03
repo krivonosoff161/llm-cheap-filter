@@ -181,6 +181,7 @@ python -m pytest -q     # offline, fake LLM, no network
 
 - [Project map](docs/project-map.md) — modules, what exists today vs not included, reviewer checklist.
 - [Use cases](docs/use-cases.md) — triage, alert fatigue, support, scanning; what this is *not*.
+- [Calibration and replay](docs/calibration-replay.md) — labeled samples, false accepts, false escalates, and report artifacts.
 - [Examples guide](examples/README.md) — what each example shows and does not prove.
 
 ---
