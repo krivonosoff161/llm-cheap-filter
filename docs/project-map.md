@@ -32,6 +32,7 @@ Two design commitments hold everything together:
 | `src/llm_cheap_filter/analysis.py` | offline savings report and threshold calibration helpers | ~170 lines |
 | `tests/test_pipeline.py` | offline tests incl. policy bounds, dedup normalization, callable errors, and concurrency cap | ~190 lines |
 | `examples/` | offline demo (no keys) + llm-router wiring — see [examples/README.md](../examples/README.md) | small |
+| `docs/calibration-replay.md` | how to replay labeled samples, read false accepts/escalates, and publish savings/risk artifacts | small |
 
 ## What exists today
 
@@ -64,6 +65,7 @@ Two design commitments hold everything together:
 2. Read `policy.py` (the decision is 8 lines).
 3. Skim `pipeline.py::run()` — two passes, one semaphore, no hidden state.
 4. Skim `analysis.py` — no LLM calls, only report arithmetic and threshold sweeps.
+5. Read `docs/calibration-replay.md` before tightening thresholds on a real stream.
 
 ## How to run checks
 
