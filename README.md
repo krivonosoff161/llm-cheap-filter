@@ -183,6 +183,8 @@ python -m pytest -q     # offline, fake LLM, no network
 - [Use cases](docs/use-cases.md) — triage, alert fatigue, support, scanning; what this is *not*.
 - [Calibration and replay](docs/calibration-replay.md) — labeled samples, false accepts, false escalates, and report artifacts.
 - [Examples guide](examples/README.md) — what each example shows and does not prove.
+- [Portfolio documentation contract](https://github.com/krivonosoff161/krivonosoff161/blob/main/docs/documentation-contract.md)
+  — how this support layer fits into the broader GitHub portfolio.
 
 ---
 
@@ -194,6 +196,9 @@ python -m pytest -q     # offline, fake LLM, no network
 - A miscalibrated cheap stage can filter out important items. Start with permissive thresholds, replay against labeled samples, and use the per-item reasons before tightening.
 - Dedup uses `difflib` (good for headlines/short text); for very large streams swap in your own near-duplicate check.
 - It controls *which* items reach the expensive model — it does not implement the models themselves.
+- It is not the portfolio flagship, a correctness oracle, or a security control
+  by itself. Larger systems own the final decision, validation, authorization,
+  storage, and safety boundaries.
 
 ---
 

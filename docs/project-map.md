@@ -8,6 +8,10 @@ survivors, and an explicit policy escalates only the few high-signal items to
 an *expensive* LLM. The goal is one number: a low `chief_rate` without losing
 the items that mattered.
 
+In the public portfolio this is a support layer, not a flagship project. The
+portfolio-level documentation hierarchy is defined in the
+[Documentation Contract](https://github.com/krivonosoff161/krivonosoff161/blob/main/docs/documentation-contract.md).
+
 ## Mental model
 
 ```

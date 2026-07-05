@@ -6,6 +6,10 @@ the items that matter.
 
 This guide turns the pipeline output into a repeatable calibration loop.
 
+This is a repository-local calibration guide. Portfolio-level documentation
+authority and public/private boundaries are defined in the
+[Documentation Contract](https://github.com/krivonosoff161/krivonosoff161/blob/main/docs/documentation-contract.md).
+
 ## Source Baseline
 
 The calibration loop follows public safety and measurement guidance:
