@@ -1,0 +1,24 @@
+{
+  "schema_version": "SecurityPortfolioLocalContract.v2",
+  "roadmap_version": "2026.07.31-rc1",
+  "upstream_projection_source_hint": "https://github.com/krivonosoff161/krivonosoff161/blob/main/docs/security-portfolio-roadmap-public.yaml",
+  "public_projection_sha256": "d960d5a710c152c28ad9837ebd665a476d0fc99562076ff6f1c5f24e73dd0bd6",
+  "public_projection_size": 28926,
+  "vendored_projection_path": "docs/security-portfolio-roadmap-public.yaml",
+  "upstream_private_source_sha256": "181a0dd7fad62699693895b1bd5189c91984140a48a35afe811d948efee57fca",
+  "repository_id": "llm-cheap-filter",
+  "roadmap_authority": "owned_module_projection",
+  "owned_modules": [
+    {
+      "id": "M15-cost-triage",
+      "status": "optional_support"
+    }
+  ],
+  "forbidden_promotions": [
+    "cheap_model_agreement_as_trust",
+    "correctness_oracle",
+    "operational_authority",
+    "security_control"
+  ],
+  "authority": "none"
+}
