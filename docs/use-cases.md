@@ -22,10 +22,10 @@ Four separate operational problems:
 ## Practical workflows
 
 **1. News / market-event scanning.**
-Hundreds of headlines per scan; sponsored posts, weekly recaps and re-posts are
-dropped for free, a cheap model scores the rest, and only "this looks
-material" items reach the chief model. (This is the production pattern the
-library was extracted from.)
+In a bounded headline batch, sponsored posts, weekly recaps and re-posts can be
+dropped by declared rules, a cheap model can score the rest, and only selected
+items reach the chief model. The repository proves the mechanism on synthetic
+fixtures, not a production feed's quality or savings.
 
 **2. Alert-fatigue reduction.**
 Pipe monitoring/SIEM alert text through the pipeline: dedup collapses repeated
