@@ -11,8 +11,7 @@ Portfolio ownership and evidence ceilings: [Security Portfolio module contract](
 judge the rest with a *cheap* model, and escalate only the few that matter to an
 *expensive* one. A small, **zero-dependency** triage pipeline for agentic systems.
 
-> Extracted and generalized from a production news scanner that ingests hundreds of items
-> per scan but only sends a small fraction to its expensive "chief" model. The pattern —
+> Generalized from a news-triage workflow. The pattern —
 > *deterministic filter → cheap → chief* — is one of the biggest levers on agentic LLM
 > cost, but only if you measure what it drops and escalates.
 
@@ -62,7 +61,10 @@ summary: {'items_in': 9, 'filtered_free': 5, 'ended_cheap': 1, 'escalated_chief'
           'errors': 0, 'total_tokens': 228, 'total_cost': 0.0188, 'chief_rate': 0.333}
 ```
 
-5 of 9 items never touched an LLM; only 3 reached the expensive model. On noisy feeds like the one this was extracted from, the chief rate dropped to single-digit percents; your result depends on thresholds, source quality, and data.
+In this committed synthetic example, 5 of 9 items never touched an LLM and 3
+reached the expensive model. This is example arithmetic, not evidence of a
+production chief rate; real results depend on labels, thresholds, source quality,
+and drift.
 
 ---
 
