@@ -1,0 +1,55 @@
+{
+  "schema_version": "AgenticSecurityEcosystemComponent.v1",
+  "component_id": "llm-cheap-filter",
+  "display_name": "LLM Cheap Filter",
+  "repository": "https://github.com/krivonosoff161/llm-cheap-filter",
+  "visibility": "public",
+  "kind": "support_adapter",
+  "summary": "Standalone deterministic prefilter and cheap-to-chief triage support; it cannot establish trust or lower a security decision.",
+  "package": {
+    "name": "llm-cheap-filter",
+    "version": "0.1.0",
+    "install": "pip install -e .",
+    "entry_points": []
+  },
+  "owns": {
+    "modules": ["cost-triage-support"],
+    "checks": [],
+    "collectors": [],
+    "adapters": ["injected-cheap-chief-callables"],
+    "contracts": []
+  },
+  "consumes": ["caller-supplied asynchronous cheap and chief model callables"],
+  "contracts": [
+    {"id": "component-manifest", "version": "1", "direction": "consumes", "required": false}
+  ],
+  "docs": [
+    {"path": "README.md", "role": "component-front-door"},
+    {"path": "docs/component-roadmap.md", "role": "component-owned"},
+    {"path": "docs/project-map.md", "role": "component-owned"},
+    {"path": "docs/calibration-replay.md", "role": "component-owned"},
+    {"path": "docs/security-portfolio-roadmap.md", "role": "historical"},
+    {"path": "docs/security-portfolio-roadmap-public.yaml", "role": "historical"},
+    {"path": "docs/security-portfolio-roadmap-contract.json", "role": "historical"}
+  ],
+  "compatibility": {
+    "harness_api": "not-yet-declared",
+    "python": ">=3.9",
+    "platforms": {"supported": ["linux", "windows"], "tested": ["linux", "windows"]}
+  },
+  "integration_status": "standalone",
+  "evidence_refs": ["pyproject.toml", "docs/calibration-replay.md", ".github/workflows/tests.yml"],
+  "claims": [
+    "deterministic prefilter and escalation policy",
+    "offline threshold calibration and savings arithmetic"
+  ],
+  "non_claims": [
+    "security control",
+    "correctness oracle",
+    "trust source",
+    "permission to lower a guard decision",
+    "provider client",
+    "installable Harness extension"
+  ],
+  "authority": "none"
+}
