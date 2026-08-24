@@ -6,7 +6,7 @@
   "bound_files": {
     ".github/workflows/tests.yml": "acf27a0f8b76667118b6a9fafcb135b94bc517f04a1f6c185079ee23f8babbfb",
     "README.md": "15cf8e14ebbb5887cf12417bce02315cc9abd05c07e270889b00c8bf7b911050",
-    "component.yaml": "35a75f7d036fe0c2043ec6b0bce5cf4e9dbad8c429281fb710d72ae45a1b3292",
+    "component.yaml": "abe164a8e441a08227eb5d6b5d44019903d97143df47b0f87408b38c4abd68eb",
     "docs/triage-batch-receipt.md": "6b6bdd00480f59b3ef7fa901cba1dba8d23ccfa441e233c3e0ea1ac6150643d4",
     "src/llm_cheap_filter/__init__.py": "30f08a1d5e0abca31529f22b65ce59fe03fc0dff5d8d3a6944d287cdcb46d169",
     "src/llm_cheap_filter/analysis.py": "b25ac05ec154d23f5501f966411e44d382ab4fe87f1480d50e4343451e6c2fc7",

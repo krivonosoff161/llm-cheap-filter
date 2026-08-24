@@ -23,6 +23,8 @@ The current review branch also owns the source-level
 [`Triage Batch Receipt V1`](triage-batch-receipt.md): a canonical digest-only accounting
 projection over a completed report. It is unreleased, performs no provider call, and carries
 `authority=none` plus `may_lower_security_decision=false`.
+The component manifest declares this source-owned contract with the closed ecosystem direction
+`provides`; consumers may validate the receipt but gain no execution authority from it.
 
 ## Component-owned documents
 

@@ -61,6 +61,17 @@ def test_component_manifest_is_closed_and_truthful() -> None:
         "tested": ["linux", "windows"],
     }
 
+    contracts = manifest["contracts"]
+    assert isinstance(contracts, list)
+    assert all(item["direction"] in {"provides", "consumes"} for item in contracts)
+    assert {
+        (item["id"], item["version"], item["direction"], item["required"])
+        for item in contracts
+    } == {
+        ("component-manifest", "1", "consumes", False),
+        ("triage-batch-receipt", "1.0", "provides", False),
+    }
+
 
 def test_document_roles_exist_and_preserve_historical_snapshots() -> None:
     manifest = load_manifest()
@@ -82,4 +93,3 @@ def test_front_door_keeps_support_boundary_explicit() -> None:
     assert "Linux and Windows are both supported and tested" in roadmap
     non_claims = set(load_manifest()["non_claims"])
     assert {"security control", "correctness oracle", "trust source"} <= non_claims
-

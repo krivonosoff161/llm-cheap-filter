@@ -22,7 +22,7 @@
   "consumes": ["caller-supplied asynchronous cheap and chief model callables"],
   "contracts": [
     {"id": "component-manifest", "version": "1", "direction": "consumes", "required": false},
-    {"id": "triage-batch-receipt", "version": "1.0", "direction": "produces", "required": false}
+    {"id": "triage-batch-receipt", "version": "1.0", "direction": "provides", "required": false}
   ],
   "docs": [
     {"path": "README.md", "role": "component-front-door"},
