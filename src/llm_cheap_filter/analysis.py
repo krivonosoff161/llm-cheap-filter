@@ -7,6 +7,7 @@ cheap-stage scores.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
@@ -106,6 +107,8 @@ def build_savings_report(
     explicit baseline is provided, the baseline is unknown and a ValueError is raised.
     """
 
+    if not isinstance(report, Report):
+        raise TypeError("report must be Report")
     items_in = len(report.results)
     actual_tokens = sum(r.tokens for r in report.results)
     actual_cost = sum(r.cost for r in report.results)
@@ -121,8 +124,20 @@ def build_savings_report(
         if chief_cost_per_item is None:
             chief_cost_per_item = sum(r.cost for r in chief_results) / len(chief_results)
 
-    counterfactual_tokens = int(chief_tokens_per_item) * items_in
-    counterfactual_cost = float(chief_cost_per_item) * items_in
+    if isinstance(chief_tokens_per_item, bool) or not isinstance(chief_tokens_per_item, int):
+        raise TypeError("chief_tokens_per_item must be an integer")
+    if chief_tokens_per_item < 0:
+        raise ValueError("chief_tokens_per_item must be non-negative")
+    if isinstance(chief_cost_per_item, bool) or not isinstance(
+        chief_cost_per_item, (int, float)
+    ):
+        raise TypeError("chief_cost_per_item must be numeric")
+    chief_cost_per_item = float(chief_cost_per_item)
+    if not math.isfinite(chief_cost_per_item) or chief_cost_per_item < 0.0:
+        raise ValueError("chief_cost_per_item must be finite and non-negative")
+
+    counterfactual_tokens = chief_tokens_per_item * items_in
+    counterfactual_cost = chief_cost_per_item * items_in
     saved_tokens = max(0, counterfactual_tokens - actual_tokens)
     saved_cost = max(0.0, counterfactual_cost - actual_cost)
     savings_rate = saved_cost / counterfactual_cost if counterfactual_cost > 0 else 0.0
@@ -158,15 +173,26 @@ def calibrate_thresholds(
     if not scores:
         return []
 
-    clean_scores = [float(score) for score in scores]
-    labels = [bool(label) for label in should_escalate]
+    clean_scores: list[float] = []
+    for score in scores:
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            raise TypeError("scores must be numeric")
+        value = float(score)
+        if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+            raise ValueError("scores must be finite and in the 0..1 range")
+        clean_scores.append(value)
+    if any(not isinstance(label, bool) for label in should_escalate):
+        raise TypeError("should_escalate labels must be bools")
+    labels = list(should_escalate)
     positives = sum(1 for label in labels if label)
     points: list[CalibrationPoint] = []
 
     for raw_threshold in thresholds:
+        if isinstance(raw_threshold, bool) or not isinstance(raw_threshold, (int, float)):
+            raise TypeError("thresholds must be numeric")
         threshold = float(raw_threshold)
-        if not 0.0 <= threshold <= 1.0:
-            raise ValueError("thresholds must be in the 0..1 range")
+        if not math.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
+            raise ValueError("thresholds must be finite and in the 0..1 range")
         escalated = [score >= threshold for score in clean_scores]
         chief_calls = sum(1 for value in escalated if value)
         true_positive = sum(1 for pred, label in zip(escalated, labels) if pred and label)

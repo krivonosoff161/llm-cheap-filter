@@ -1,0 +1,194 @@
+{
+  "$id": "https://github.com/krivonosoff161/llm-cheap-filter/blob/main/schemas/triage-batch-receipt.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "escalation_policy_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "input_batch_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "may_lower_security_decision": {
+      "const": false
+    },
+    "operational_authority": {
+      "const": "none"
+    },
+    "prefilter_configuration_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "receipt_id": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "cost_usd": {
+            "maximum": 1000000000.0,
+            "minimum": 0,
+            "type": "number"
+          },
+          "decision_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "flagged": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "input_index": {
+            "maximum": 99999,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "input_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "may_lower_security_decision": {
+            "const": false
+          },
+          "operational_authority": {
+            "const": "none"
+          },
+          "reason_codes": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+              "type": "string"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "score": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "stage": {
+            "enum": [
+              "cancelled",
+              "cheap_drop",
+              "cheap_keep",
+              "chief",
+              "error",
+              "prefilter_drop"
+            ]
+          },
+          "total_tokens": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "input_index",
+          "input_sha256",
+          "stage",
+          "score",
+          "flagged",
+          "total_tokens",
+          "cost_usd",
+          "reason_codes",
+          "decision_sha256",
+          "may_lower_security_decision",
+          "operational_authority"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100000,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "llm-cheap-filter-triage-batch-receipt-v1.0"
+    },
+    "summary": {
+      "additionalProperties": false,
+      "properties": {
+        "cancelled": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cheap_drop": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cheap_keep": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chief": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "input_count": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "prefilter_drop": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total_cost_usd": {
+          "maximum": 1000000000.0,
+          "minimum": 0,
+          "type": "number"
+        },
+        "total_tokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "input_count",
+        "prefilter_drop",
+        "cheap_drop",
+        "cheap_keep",
+        "chief",
+        "error",
+        "cancelled",
+        "total_tokens",
+        "total_cost_usd"
+      ],
+      "type": "object"
+    },
+    "verdict_semantics": {
+      "const": "triage_accounting_only_no_security_verdict"
+    }
+  },
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "input_batch_sha256",
+    "prefilter_configuration_sha256",
+    "escalation_policy_sha256",
+    "results",
+    "summary",
+    "verdict_semantics",
+    "may_lower_security_decision",
+    "operational_authority"
+  ],
+  "title": "LLM Cheap Filter Triage Batch Receipt V1",
+  "type": "object"
+}

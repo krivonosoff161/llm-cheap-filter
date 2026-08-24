@@ -1,0 +1,29 @@
+{
+  "artifacts": {
+    "schemas/triage-batch-receipt.v1.schema.json": "556a67e3c99e3415650e2a9a461c653b80686e000511b549a9c50fde1ae79522"
+  },
+  "bound_file_digest_semantics": "sha256_lf_normalized_text_v1",
+  "bound_files": {
+    ".github/workflows/tests.yml": "acf27a0f8b76667118b6a9fafcb135b94bc517f04a1f6c185079ee23f8babbfb",
+    "README.md": "15cf8e14ebbb5887cf12417bce02315cc9abd05c07e270889b00c8bf7b911050",
+    "component.yaml": "35a75f7d036fe0c2043ec6b0bce5cf4e9dbad8c429281fb710d72ae45a1b3292",
+    "docs/triage-batch-receipt.md": "963db86638d797cfdcedfcf622776564af65d118512258d8063f62a2d372a26e",
+    "src/llm_cheap_filter/__init__.py": "30f08a1d5e0abca31529f22b65ce59fe03fc0dff5d8d3a6944d287cdcb46d169",
+    "src/llm_cheap_filter/analysis.py": "a8d8c41ed496ae564d0316fc30b069a6f49d8719278614c0a44060a0522b59a1",
+    "src/llm_cheap_filter/pipeline.py": "6de39cfa91d8707f5f9919493f164519079956c0d81f0a813b08b0fbd9a1128c",
+    "src/llm_cheap_filter/policy.py": "43f47829993f0c37aac69d4f53697d654e8742be8c8018c5211aec4ed305d320",
+    "src/llm_cheap_filter/prefilter.py": "9d2118fe1cd77b35623d4c916371d9ff6c5d15c29894bf6ff55bff5e9bfc9955",
+    "src/llm_cheap_filter/receipt.py": "72c6aeda3a9baceb6a7e535223977c1785b72b45a1795660be05a50e16ef6d78",
+    "tests/test_analysis.py": "386d5acfc52e704af6d2518cd2c7fa99f3886d9c93dce26aba18ccdbf7c2fde9",
+    "tests/test_pipeline.py": "f9225f67747aabcd32a28c01c4275d8cc2f938572698db40e816a59825aaa820",
+    "tests/test_triage_receipt.py": "d78570563c0cd8557928e1632a0679f45e1866268c6cc82cda13abfdde25d4a1",
+    "tools/triage_receipt_contracts.py": "3af63f4a48031c5bfdbb9c25af59b078ba9899e580fc9677753362d639e94130"
+  },
+  "contract_id": "triage-batch-receipt",
+  "contract_version": "1.0",
+  "generator": "tools/triage_receipt_contracts.py",
+  "may_lower_security_decision": false,
+  "operational_authority": "none",
+  "schema_version": "llm-cheap-filter-contract-manifest-v1.0",
+  "verdict_semantics": "triage_accounting_only_no_security_verdict"
+}

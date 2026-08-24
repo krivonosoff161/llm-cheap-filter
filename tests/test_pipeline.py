@@ -2,6 +2,7 @@
 """Offline tests for llm-cheap-filter (no network, fake LLM callables)."""
 
 import asyncio
+import math
 
 import pytest
 
@@ -48,7 +49,7 @@ def test_prefilter_noise_wins_over_keep_keyword():
     verdict = pf.score("Sponsored earnings webinar", [])
 
     assert verdict.keep is False
-    assert verdict.reason == "noise:sponsored"
+    assert verdict.reason == "noise_match"
 
 
 def test_prefilter_dedup():
@@ -153,7 +154,8 @@ def test_pipeline_isolates_callable_errors():
     assert report.summary["ended_cheap"] == 2
     assert report.summary["escalated_chief"] == 0
     assert [r.stage for r in report.results] == ["cheap", "error", "cheap"]
-    assert "RuntimeError" in (report.results[1].reason or "")
+    assert report.results[1].reason == "pipeline.cheap_callable_error"
+    assert "cheap exploded" not in (report.results[1].reason or "")
 
 
 def test_pipeline_marks_invalid_usage_as_error():
@@ -171,6 +173,7 @@ def test_pipeline_marks_invalid_usage_as_error():
 
     assert report.summary["errors"] == 1
     assert report.results[0].stage == "error"
+    assert report.results[0].reason == "pipeline.cheap_invalid_output"
 
 
 def test_pipeline_accepts_cost_fallback_key():
@@ -296,3 +299,86 @@ def test_pipeline_instance_supports_parallel_run_calls():
     assert right.summary["items_in"] == 2
     assert left.summary["ended_cheap"] == 2
     assert right.summary["ended_cheap"] == 2
+
+
+@pytest.mark.parametrize(
+    "judgment",
+    [
+        {"score": float("nan")},
+        {"score": float("inf")},
+        {"score": -0.1},
+        {"score": 1.1},
+        {"score": True},
+        {"score": 0.5, "flagged": "false"},
+        {},
+    ],
+)
+def test_pipeline_rejects_invalid_score_and_flag_shapes(judgment):
+    async def invalid_cheap(text):
+        return judgment, {"total_tokens": 1, "cost_usd": 0.0}
+
+    pipe = Pipeline(PreFilter(min_chars=1), EscalationPolicy(), invalid_cheap, _fake_chief)
+    report = asyncio.run(pipe.run(["bounded item"]))
+
+    assert report.results[0].stage == "error"
+    assert report.results[0].reason == "pipeline.cheap_invalid_output"
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        {"total_tokens": True, "cost_usd": 0.0},
+        {"total_tokens": -1, "cost_usd": 0.0},
+        {"total_tokens": 1.5, "cost_usd": 0.0},
+        {"total_tokens": 1, "cost_usd": float("nan")},
+        {"total_tokens": 1, "cost_usd": float("inf")},
+        {"total_tokens": 1, "cost_usd": -0.1},
+    ],
+)
+def test_pipeline_rejects_non_finite_or_ambiguous_usage(usage):
+    async def invalid_usage(text):
+        return {"score": 0.4, "flagged": False}, usage
+
+    pipe = Pipeline(PreFilter(min_chars=1), EscalationPolicy(), invalid_usage, _fake_chief)
+    report = asyncio.run(pipe.run(["bounded item"]))
+
+    assert report.results[0].stage == "error"
+    assert report.results[0].reason == "pipeline.cheap_invalid_output"
+
+
+def test_pipeline_distinguishes_sanitized_chief_failure_classes():
+    async def chief_candidate(text):
+        return {"score": 0.9, "flagged": False}, {"total_tokens": 1, "cost_usd": 0.0}
+
+    async def invalid_chief(text, judgment):
+        return "not a decision dict", {"total_tokens": 1, "cost_usd": 0.0}
+
+    invalid_report = asyncio.run(
+        Pipeline(PreFilter(min_chars=1), EscalationPolicy(), chief_candidate, invalid_chief).run(
+            ["chief invalid"]
+        )
+    )
+    assert invalid_report.results[0].reason == "pipeline.chief_invalid_output"
+
+    async def failing_chief(text, judgment):
+        raise RuntimeError("PRIVATE_CHIEF_EXCEPTION")
+
+    failed_report = asyncio.run(
+        Pipeline(PreFilter(min_chars=1), EscalationPolicy(), chief_candidate, failing_chief).run(
+            ["chief failure"]
+        )
+    )
+    assert failed_report.results[0].reason == "pipeline.chief_callable_error"
+    assert "PRIVATE_CHIEF_EXCEPTION" not in failed_report.results[0].reason
+
+
+def test_policy_and_prefilter_reject_non_finite_or_bool_controls():
+    for value in (float("nan"), float("inf"), -0.1, 1.1, True):
+        with pytest.raises((TypeError, ValueError)):
+            PreFilter(base_score=value)
+    with pytest.raises(TypeError):
+        EscalationPolicy(escalate_if_flagged=1)
+    with pytest.raises(ValueError):
+        EscalationPolicy(escalate_if_score_at_least=math.nan)
+    with pytest.raises(TypeError):
+        EscalationPolicy().decide(0.5, flagged="false")

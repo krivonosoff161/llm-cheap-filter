@@ -34,6 +34,7 @@ Two design commitments hold everything together:
 | `src/llm_cheap_filter/policy.py` | `drop / cheap / chief` decision from score + flag; validates its own thresholds | ~45 lines |
 | `src/llm_cheap_filter/pipeline.py` | orchestration: sequential prefilter, concurrent LLM stages (semaphore-capped), tallying | ~115 lines |
 | `src/llm_cheap_filter/analysis.py` | offline savings report and threshold calibration helpers | ~170 lines |
+| `src/llm_cheap_filter/receipt.py` | closed canonical, digest-only triage batch receipt | contract |
 | `tests/test_pipeline.py` | offline tests incl. policy bounds, dedup normalization, callable errors, and concurrency cap | ~190 lines |
 | `examples/` | offline demo (no keys) + llm-router wiring — see [examples/README.md](../examples/README.md) | small |
 | `docs/calibration-replay.md` | how to replay labeled samples, read false accepts/escalates, and publish savings/risk artifacts | small |
@@ -42,7 +43,7 @@ Two design commitments hold everything together:
 
 - The full drop → cheap → chief pipeline with per-item results and a summary
   (`items_in / filtered_free / ended_cheap / escalated_chief / total_tokens /
-  errors / total_cost / chief_rate`).
+  errors / cancelled / total_cost / chief_rate`).
 - Concurrency cap via `asyncio.Semaphore` (tested: peak in-flight never exceeds it).
 - `EscalationPolicy` fails fast on inconsistent thresholds
   (`drop_if_score_below` must be `< escalate_if_score_at_least`, both in 0..1).
@@ -52,6 +53,9 @@ Two design commitments hold everything together:
   - `build_savings_report(report)` estimates actual spend vs an all-chief baseline;
   - `calibrate_thresholds(scores, should_escalate)` measures chief rate, false accepts,
     false escalates, precision, and recall for candidate thresholds.
+- A source-owned receipt candidate records exactly one terminal result for each ordered input as
+  `prefilter_drop / cheap_drop / cheap_keep / chief / error / cancelled`, without retaining raw
+  item, decision, exception, prompt, or model-output bytes.
 
 ## What is NOT included (by design)
 
@@ -103,3 +107,4 @@ CI runs pytest and ruff on Python 3.9 / 3.11 / 3.12 across Ubuntu and Windows.
 - [ ] Concurrency test still proves the cap (peak ≤ limit).
 - [ ] README demo output still matches `examples/offline_demo.py` actual output.
 - [ ] Calibration docs still say lower chief-rate is not automatically better.
+- [ ] `python tools/triage_receipt_contracts.py check` proves the schema and bound files have not drifted.
