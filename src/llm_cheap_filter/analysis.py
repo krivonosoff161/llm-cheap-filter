@@ -133,7 +133,11 @@ def build_savings_report(
     ):
         raise TypeError("chief_cost_per_item must be numeric")
     chief_cost_per_item = float(chief_cost_per_item)
-    if not math.isfinite(chief_cost_per_item) or chief_cost_per_item < 0.0:
+    if (
+        not math.isfinite(chief_cost_per_item)
+        or (chief_cost_per_item == 0.0 and math.copysign(1.0, chief_cost_per_item) < 0.0)
+        or chief_cost_per_item < 0.0
+    ):
         raise ValueError("chief_cost_per_item must be finite and non-negative")
 
     counterfactual_tokens = chief_tokens_per_item * items_in
@@ -178,7 +182,11 @@ def calibrate_thresholds(
         if isinstance(score, bool) or not isinstance(score, (int, float)):
             raise TypeError("scores must be numeric")
         value = float(score)
-        if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+        if (
+            not math.isfinite(value)
+            or (value == 0.0 and math.copysign(1.0, value) < 0.0)
+            or not 0.0 <= value <= 1.0
+        ):
             raise ValueError("scores must be finite and in the 0..1 range")
         clean_scores.append(value)
     if any(not isinstance(label, bool) for label in should_escalate):
@@ -191,7 +199,11 @@ def calibrate_thresholds(
         if isinstance(raw_threshold, bool) or not isinstance(raw_threshold, (int, float)):
             raise TypeError("thresholds must be numeric")
         threshold = float(raw_threshold)
-        if not math.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
+        if (
+            not math.isfinite(threshold)
+            or (threshold == 0.0 and math.copysign(1.0, threshold) < 0.0)
+            or not 0.0 <= threshold <= 1.0
+        ):
             raise ValueError("thresholds must be finite and in the 0..1 range")
         escalated = [score >= threshold for score in clean_scores]
         chief_calls = sum(1 for value in escalated if value)

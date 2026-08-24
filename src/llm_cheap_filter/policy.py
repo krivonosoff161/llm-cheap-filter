@@ -36,6 +36,8 @@ class EscalationPolicy:
                 raise TypeError(f"{label} must be numeric")
             if not math.isfinite(float(value)):
                 raise ValueError(f"{label} must be finite")
+            if float(value) == 0.0 and math.copysign(1.0, float(value)) < 0.0:
+                raise ValueError(f"{label} cannot be negative zero")
         self.drop_if_score_below = float(self.drop_if_score_below)
         self.escalate_if_score_at_least = float(self.escalate_if_score_at_least)
         if not (0.0 <= self.drop_if_score_below < self.escalate_if_score_at_least <= 1.0):
@@ -49,7 +51,11 @@ class EscalationPolicy:
         if isinstance(score, bool) or not isinstance(score, (int, float)):
             raise TypeError("score must be numeric")
         score = float(score)
-        if not math.isfinite(score) or not 0.0 <= score <= 1.0:
+        if (
+            not math.isfinite(score)
+            or (score == 0.0 and math.copysign(1.0, score) < 0.0)
+            or not 0.0 <= score <= 1.0
+        ):
             raise ValueError("score must be finite and in the 0..1 range")
         if not isinstance(flagged, bool):
             raise TypeError("flagged must be a bool")

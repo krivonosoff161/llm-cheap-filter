@@ -95,19 +95,23 @@ def test_receipt_accounts_for_all_terminal_stages_without_raw_payloads() -> None
 
 def test_cancelled_stage_is_explicit_and_authority_free() -> None:
     text = "cancelled raw item"
+    prefilter = PreFilter()
+    policy = EscalationPolicy()
     report = Report(
         [
             ItemResult(
                 text,
                 "cancelled",
                 0.6,
-                reason="pipeline.callable_cancelled",
+                reason="pipeline.cheap_callable_cancelled",
             )
         ],
         input_sha256s=(_input_digest(text),),
+        prefilter_configuration_sha256=prefilter_configuration_sha256(prefilter),
+        escalation_policy_sha256=escalation_policy_sha256(policy),
     )
     receipt = build_triage_batch_receipt_v1(
-        report, prefilter=PreFilter(), policy=EscalationPolicy()
+        report, prefilter=prefilter, policy=policy
     )
 
     assert receipt.results[0].stage == "cancelled"
@@ -134,14 +138,30 @@ def test_receipt_binds_policy_configuration_inputs_and_decisions() -> None:
     assert [result.input_sha256 for result in receipt.results] == list(report.input_sha256s)
     assert len({result.decision_sha256 for result in receipt.results}) == len(receipt.results)
 
-    changed = build_triage_batch_receipt_v1(
-        report,
-        prefilter=PreFilter(drop_substrings=("different",), min_chars=1),
-        policy=EscalationPolicy(escalate_if_score_at_least=0.9),
-    )
-    assert changed.prefilter_configuration_sha256 != receipt.prefilter_configuration_sha256
-    assert changed.escalation_policy_sha256 != receipt.escalation_policy_sha256
-    assert changed.receipt_id != receipt.receipt_id
+    with pytest.raises(TriageReceiptContractError, match="prefilter provenance"):
+        build_triage_batch_receipt_v1(
+            report,
+            prefilter=PreFilter(drop_substrings=("different",), min_chars=1),
+            policy=policy,
+        )
+    with pytest.raises(TriageReceiptContractError, match="policy provenance"):
+        build_triage_batch_receipt_v1(
+            report,
+            prefilter=prefilter,
+            policy=EscalationPolicy(escalate_if_score_at_least=0.9),
+        )
+
+
+def test_receipt_rejects_report_provenance_commitment_tampering() -> None:
+    prefilter, policy, report = _pipeline_and_report()
+    report.prefilter_configuration_sha256 = "0" * 64
+    with pytest.raises(TriageReceiptContractError, match="prefilter provenance"):
+        build_triage_batch_receipt_v1(report, prefilter=prefilter, policy=policy)
+
+    _, _, report = _pipeline_and_report()
+    report.escalation_policy_sha256 = "0" * 64
+    with pytest.raises(TriageReceiptContractError, match="policy provenance"):
+        build_triage_batch_receipt_v1(report, prefilter=prefilter, policy=policy)
 
 
 def test_receipt_rejects_missing_or_rebound_input_accounting() -> None:
@@ -155,6 +175,13 @@ def test_receipt_rejects_missing_or_rebound_input_accounting() -> None:
             [ItemResult("item", "filtered", 0.0, reason="too_short")],
             input_sha256s=("0" * 64,),
         )
+
+
+def test_public_commitment_helpers_preserve_contract_error_type() -> None:
+    with pytest.raises(TriageReceiptContractError, match="prefilter"):
+        prefilter_configuration_sha256(object())
+    with pytest.raises(TriageReceiptContractError, match="policy"):
+        escalation_policy_sha256(object())
 
 
 def test_decoder_rejects_unknown_duplicate_noncanonical_and_tampered_bytes() -> None:
@@ -189,10 +216,12 @@ def test_decoder_rejects_unknown_duplicate_noncanonical_and_tampered_bytes() -> 
     ("field", "value"),
     [
         ("score", float("nan")),
+        ("score", -0.0),
         ("score", True),
         ("total_tokens", True),
         ("total_tokens", -1),
         ("cost_usd", float("inf")),
+        ("cost_usd", -0.0),
         ("cost_usd", -1.0),
         ("flagged", "false"),
     ],

@@ -46,7 +46,11 @@ class PreFilter:
         if isinstance(self.base_score, bool) or not isinstance(self.base_score, (int, float)):
             raise TypeError("base_score must be numeric")
         score = float(self.base_score)
-        if not math.isfinite(score) or not 0.0 <= score <= 1.0:
+        if (
+            not math.isfinite(score)
+            or (score == 0.0 and math.copysign(1.0, score) < 0.0)
+            or not 0.0 <= score <= 1.0
+        ):
             raise ValueError("base_score must be finite and in the 0..1 range")
         self.base_score = score
         for values, label in (

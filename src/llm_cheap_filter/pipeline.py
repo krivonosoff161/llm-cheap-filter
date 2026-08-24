@@ -14,9 +14,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import math
+import re
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Iterable, Optional
+from typing import Awaitable, Callable, Iterable, Optional, TypeVar
 
+from .commitments import escalation_policy_sha256, prefilter_configuration_sha256
 from .policy import CHIEF, DROP, EscalationPolicy
 from .prefilter import PreFilter
 
@@ -29,6 +31,8 @@ ChiefCall = Callable[[str, dict], Awaitable["tuple[dict, dict]"]]
 MAX_USAGE_TOKENS = 9_007_199_254_740_991
 MAX_USAGE_COST_USD = 1_000_000_000.0
 _INPUT_DIGEST_DOMAIN = b"llm-cheap-filter/input/v1\0"
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_CallResult = TypeVar("_CallResult")
 
 
 class PipelineOutputError(ValueError):
@@ -41,6 +45,14 @@ class PipelineOutputError(ValueError):
 
 class PipelineCallError(RuntimeError):
     """Sanitized stage-aware callable failure without exception payload retention."""
+
+    def __init__(self, reason_code: str) -> None:
+        super().__init__(reason_code)
+        self.reason_code = reason_code
+
+
+class PipelineItemCancelled(RuntimeError):
+    """One injected callable cancelled itself; the surrounding batch remains valid."""
 
     def __init__(self, reason_code: str) -> None:
         super().__init__(reason_code)
@@ -66,7 +78,11 @@ class ItemResult:
         if isinstance(self.score, bool) or not isinstance(self.score, (int, float)):
             raise TypeError("result score must be numeric")
         self.score = float(self.score)
-        if not math.isfinite(self.score) or not 0.0 <= self.score <= 1.0:
+        if (
+            not math.isfinite(self.score)
+            or _is_negative_zero(self.score)
+            or not 0.0 <= self.score <= 1.0
+        ):
             raise ValueError("result score must be finite and in the 0..1 range")
         if self.decision is not None and not isinstance(self.decision, dict):
             raise TypeError("result decision must be a dict or null")
@@ -83,6 +99,8 @@ class ItemResult:
 class Report:
     results: list[ItemResult]
     input_sha256s: Optional[tuple[str, ...]] = None
+    prefilter_configuration_sha256: Optional[str] = None
+    escalation_policy_sha256: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.input_sha256s is not None:
@@ -93,6 +111,17 @@ class Report:
                 for digest, result in zip(self.input_sha256s, self.results)
             ):
                 raise ValueError("input commitment does not bind its result item")
+        commitments = (
+            self.prefilter_configuration_sha256,
+            self.escalation_policy_sha256,
+        )
+        if (commitments[0] is None) != (commitments[1] is None):
+            raise ValueError("report configuration and policy commitments must be paired")
+        if any(
+            value is not None and not _SHA256_PATTERN.fullmatch(value)
+            for value in commitments
+        ):
+            raise ValueError("report provenance commitments must be lowercase SHA-256")
 
     @property
     def summary(self) -> dict:
@@ -131,7 +160,11 @@ def _usage(u: Optional[dict]) -> tuple[int, float]:
     if isinstance(cost, bool) or not isinstance(cost, (int, float)):
         raise PipelineOutputError("cost must be numeric")
     cost_value = float(cost)
-    if not math.isfinite(cost_value) or not 0.0 <= cost_value <= MAX_USAGE_COST_USD:
+    if (
+        not math.isfinite(cost_value)
+        or _is_negative_zero(cost_value)
+        or not 0.0 <= cost_value <= MAX_USAGE_COST_USD
+    ):
         raise PipelineOutputError("cost is outside the supported finite range")
     return tokens, cost_value
 
@@ -151,7 +184,7 @@ def _judgment_values(judgment: object) -> tuple[dict, float, bool]:
     if isinstance(raw_score, bool) or not isinstance(raw_score, (int, float)):
         raise PipelineOutputError("cheap score must be numeric")
     score = float(raw_score)
-    if not math.isfinite(score) or not 0.0 <= score <= 1.0:
+    if not math.isfinite(score) or _is_negative_zero(score) or not 0.0 <= score <= 1.0:
         raise PipelineOutputError("cheap score must be finite and in the 0..1 range")
     flagged = judgment.get("flagged", False)
     if not isinstance(flagged, bool):
@@ -163,6 +196,28 @@ def _decision_mapping(decision: object) -> dict:
     if not isinstance(decision, dict):
         raise PipelineOutputError("chief decision must be a dict")
     return decision
+
+
+def _is_negative_zero(value: float) -> bool:
+    return value == 0.0 and math.copysign(1.0, value) < 0.0
+
+
+async def _invoke_isolated(awaitable: Awaitable[_CallResult]) -> tuple[bool, Optional[_CallResult]]:
+    """Distinguish callable self-cancellation from cancellation of the batch task."""
+
+    async def capture() -> tuple[bool, Optional[_CallResult]]:
+        try:
+            return False, await awaitable
+        except asyncio.CancelledError:
+            return True, None
+
+    task = asyncio.create_task(capture())
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        raise
 
 
 class Pipeline:
@@ -179,11 +234,16 @@ class Pipeline:
     async def _llm_stages(self, text: str, base_score: float, sem: asyncio.Semaphore) -> ItemResult:
         try:
             async with sem:
-                judgment, u1 = await self.cheap_call(text)
+                cancelled, cheap_result = await _invoke_isolated(self.cheap_call(text))
         except asyncio.CancelledError:
             raise
         except Exception:
             raise PipelineCallError("pipeline.cheap_callable_error") from None
+        if cancelled:
+            raise PipelineItemCancelled("pipeline.cheap_callable_cancelled")
+        if not isinstance(cheap_result, tuple) or len(cheap_result) != 2:
+            raise PipelineOutputError("pipeline.cheap_invalid_output")
+        judgment, u1 = cheap_result
         try:
             judgment, score, flagged = _judgment_values(judgment)
             tok, cost = _usage(u1)
@@ -196,11 +256,18 @@ class Pipeline:
             return ItemResult(text, "cheap", score, judgment, None, tok, cost, flagged)
         try:
             async with sem:
-                verdict, u2 = await self.chief_call(text, judgment)
+                cancelled, chief_result = await _invoke_isolated(
+                    self.chief_call(text, judgment)
+                )
         except asyncio.CancelledError:
             raise
         except Exception:
             raise PipelineCallError("pipeline.chief_callable_error") from None
+        if cancelled:
+            raise PipelineItemCancelled("pipeline.chief_callable_cancelled")
+        if not isinstance(chief_result, tuple) or len(chief_result) != 2:
+            raise PipelineOutputError("pipeline.chief_invalid_output")
+        verdict, u2 = chief_result
         try:
             verdict = _decision_mapping(verdict)
             tok2, cost2 = _usage(u2)
@@ -226,11 +293,9 @@ class Pipeline:
             try:
                 return await self._llm_stages(text, base_score, sem)
             except asyncio.CancelledError:
-                task = asyncio.current_task()
-                cancelling = getattr(task, "cancelling", None)
-                if cancelling is None or cancelling():
-                    raise
-                return ItemResult(text, "cancelled", base_score, reason="pipeline.callable_cancelled")
+                raise
+            except PipelineItemCancelled as exc:
+                return ItemResult(text, "cancelled", base_score, reason=exc.reason_code)
             except PipelineOutputError as exc:
                 return ItemResult(text, "error", base_score, reason=exc.reason_code)
             except PipelineCallError as exc:
@@ -240,4 +305,6 @@ class Pipeline:
         return Report(
             list(results),
             input_sha256s=tuple(_input_sha256(item[0]) for item in plan),
+            prefilter_configuration_sha256=prefilter_configuration_sha256(self.prefilter),
+            escalation_policy_sha256=escalation_policy_sha256(self.policy),
         )

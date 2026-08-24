@@ -306,6 +306,7 @@ def test_pipeline_instance_supports_parallel_run_calls():
     [
         {"score": float("nan")},
         {"score": float("inf")},
+        {"score": -0.0},
         {"score": -0.1},
         {"score": 1.1},
         {"score": True},
@@ -332,6 +333,7 @@ def test_pipeline_rejects_invalid_score_and_flag_shapes(judgment):
         {"total_tokens": 1.5, "cost_usd": 0.0},
         {"total_tokens": 1, "cost_usd": float("nan")},
         {"total_tokens": 1, "cost_usd": float("inf")},
+        {"total_tokens": 1, "cost_usd": -0.0},
         {"total_tokens": 1, "cost_usd": -0.1},
     ],
 )
@@ -372,13 +374,85 @@ def test_pipeline_distinguishes_sanitized_chief_failure_classes():
     assert "PRIVATE_CHIEF_EXCEPTION" not in failed_report.results[0].reason
 
 
+def test_pipeline_classifies_malformed_tuple_arity_as_invalid_output():
+    async def malformed_cheap(text):
+        return ({"score": 0.4},)
+
+    cheap_report = asyncio.run(
+        Pipeline(PreFilter(min_chars=1), EscalationPolicy(), malformed_cheap, _fake_chief).run(
+            ["cheap malformed"]
+        )
+    )
+    assert cheap_report.results[0].reason == "pipeline.cheap_invalid_output"
+
+    async def chief_candidate(text):
+        return {"score": 0.9, "flagged": False}, {"total_tokens": 1, "cost_usd": 0.0}
+
+    async def malformed_chief(text, judgment):
+        return ({"verdict": "REVIEW"},)
+
+    chief_report = asyncio.run(
+        Pipeline(PreFilter(min_chars=1), EscalationPolicy(), chief_candidate, malformed_chief).run(
+            ["chief malformed"]
+        )
+    )
+    assert chief_report.results[0].reason == "pipeline.chief_invalid_output"
+
+
+def test_callable_self_cancellation_is_per_item_on_all_supported_versions():
+    async def cancelled_cheap(text):
+        raise asyncio.CancelledError()
+
+    cheap_report = asyncio.run(
+        Pipeline(PreFilter(min_chars=1), EscalationPolicy(), cancelled_cheap, _fake_chief).run(
+            ["cheap cancelled"]
+        )
+    )
+    assert cheap_report.results[0].stage == "cancelled"
+    assert cheap_report.results[0].reason == "pipeline.cheap_callable_cancelled"
+
+    async def chief_candidate(text):
+        return {"score": 0.9, "flagged": False}, {"total_tokens": 1, "cost_usd": 0.0}
+
+    async def cancelled_chief(text, judgment):
+        raise asyncio.CancelledError()
+
+    chief_report = asyncio.run(
+        Pipeline(PreFilter(min_chars=1), EscalationPolicy(), chief_candidate, cancelled_chief).run(
+            ["chief cancelled"]
+        )
+    )
+    assert chief_report.results[0].stage == "cancelled"
+    assert chief_report.results[0].reason == "pipeline.chief_callable_cancelled"
+
+
+def test_external_batch_cancellation_still_propagates():
+    async def scenario():
+        started = asyncio.Event()
+
+        async def slow_cheap(text):
+            started.set()
+            await asyncio.Event().wait()
+
+        pipe = Pipeline(PreFilter(min_chars=1), EscalationPolicy(), slow_cheap, _fake_chief)
+        task = asyncio.create_task(pipe.run(["externally cancelled batch"]))
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(scenario())
+
+
 def test_policy_and_prefilter_reject_non_finite_or_bool_controls():
-    for value in (float("nan"), float("inf"), -0.1, 1.1, True):
+    for value in (float("nan"), float("inf"), -0.0, -0.1, 1.1, True):
         with pytest.raises((TypeError, ValueError)):
             PreFilter(base_score=value)
     with pytest.raises(TypeError):
         EscalationPolicy(escalate_if_flagged=1)
     with pytest.raises(ValueError):
         EscalationPolicy(escalate_if_score_at_least=math.nan)
+    with pytest.raises(ValueError):
+        EscalationPolicy(drop_if_score_below=-0.0)
     with pytest.raises(TypeError):
         EscalationPolicy().decide(0.5, flagged="false")

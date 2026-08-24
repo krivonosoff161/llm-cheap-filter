@@ -120,7 +120,7 @@ def test_calibration_point_as_dict_rounds_rates() -> None:
     }
 
 
-@pytest.mark.parametrize("score", [math.nan, math.inf, -0.1, 1.1, True, "0.5"])
+@pytest.mark.parametrize("score", [math.nan, math.inf, -0.0, -0.1, 1.1, True, "0.5"])
 def test_calibration_rejects_non_finite_or_ambiguous_scores(score) -> None:
     with pytest.raises((TypeError, ValueError)):
         calibrate_thresholds([score], [True])
@@ -131,13 +131,15 @@ def test_calibration_requires_strict_bool_labels_and_finite_thresholds() -> None
         calibrate_thresholds([0.5], [1])
     with pytest.raises(ValueError):
         calibrate_thresholds([0.5], [True], thresholds=(math.nan,))
+    with pytest.raises(ValueError):
+        calibrate_thresholds([0.5], [True], thresholds=(-0.0,))
     with pytest.raises(TypeError):
         calibrate_thresholds([0.5], [True], thresholds=(True,))
 
 
 @pytest.mark.parametrize(
     ("tokens", "cost"),
-    [(True, 0.1), (-1, 0.1), (1, math.nan), (1, math.inf), (1, -0.1)],
+    [(True, 0.1), (-1, 0.1), (1, math.nan), (1, math.inf), (1, -0.0), (1, -0.1)],
 )
 def test_savings_rejects_invalid_explicit_baselines(tokens, cost) -> None:
     report = Report([ItemResult("cheap", "cheap", 0.4, tokens=1, cost=0.01)])

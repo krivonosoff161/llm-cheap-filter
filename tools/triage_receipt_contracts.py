@@ -20,6 +20,7 @@ SCHEMA_PATH = Path("schemas/triage-batch-receipt.v1.schema.json")
 MANIFEST_PATH = Path("schemas/triage-batch-receipt.v1.manifest.json")
 BOUND_FILES = (
     Path("src/llm_cheap_filter/receipt.py"),
+    Path("src/llm_cheap_filter/commitments.py"),
     Path("src/llm_cheap_filter/__init__.py"),
     Path("src/llm_cheap_filter/analysis.py"),
     Path("src/llm_cheap_filter/pipeline.py"),

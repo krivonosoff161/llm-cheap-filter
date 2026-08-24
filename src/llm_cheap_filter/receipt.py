@@ -14,6 +14,10 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 
+from .commitments import (
+    escalation_policy_sha256 as _escalation_policy_sha256,
+    prefilter_configuration_sha256 as _prefilter_configuration_sha256,
+)
 from .pipeline import ItemResult, Report, _input_sha256
 from .policy import EscalationPolicy
 from .prefilter import PreFilter
@@ -22,8 +26,6 @@ from .prefilter import PreFilter
 TRIAGE_BATCH_RECEIPT_V1 = "llm-cheap-filter-triage-batch-receipt-v1.0"
 TRIAGE_BATCH_RECEIPT_DOMAIN = b"llm-cheap-filter/triage-batch-receipt/v1\0"
 TRIAGE_INPUT_BATCH_DOMAIN = b"llm-cheap-filter/triage-input-batch/v1\0"
-TRIAGE_CONFIGURATION_DOMAIN = b"llm-cheap-filter/prefilter-configuration/v1\0"
-TRIAGE_POLICY_DOMAIN = b"llm-cheap-filter/escalation-policy/v1\0"
 TRIAGE_DECISION_DOMAIN = b"llm-cheap-filter/decision/v1\0"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 REASON_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]{0,127}$")
@@ -205,6 +207,12 @@ def build_triage_batch_receipt_v1(
         raise TriageReceiptContractError("report input/result accounting is incomplete")
     if len(report.results) > MAX_RECEIPT_RESULTS:
         raise TriageReceiptContractError("report result count exceeds the V1 limit")
+    expected_prefilter_sha256 = prefilter_configuration_sha256(prefilter)
+    expected_policy_sha256 = escalation_policy_sha256(policy)
+    if report.prefilter_configuration_sha256 != expected_prefilter_sha256:
+        raise TriageReceiptContractError("report prefilter provenance commitment mismatch")
+    if report.escalation_policy_sha256 != expected_policy_sha256:
+        raise TriageReceiptContractError("report policy provenance commitment mismatch")
 
     results = tuple(
         _project_result(index, result, report.input_sha256s[index])
@@ -213,8 +221,8 @@ def build_triage_batch_receipt_v1(
     payload = {
         "schema_version": TRIAGE_BATCH_RECEIPT_V1,
         "input_batch_sha256": _input_batch_sha256(report.input_sha256s),
-        "prefilter_configuration_sha256": prefilter_configuration_sha256(prefilter),
-        "escalation_policy_sha256": escalation_policy_sha256(policy),
+        "prefilter_configuration_sha256": report.prefilter_configuration_sha256,
+        "escalation_policy_sha256": report.escalation_policy_sha256,
         "results": [_result_to_dict(result) for result in results],
         "summary": _summary_to_dict(_summarize_results(results)),
         "verdict_semantics": "triage_accounting_only_no_security_verdict",
@@ -226,31 +234,21 @@ def build_triage_batch_receipt_v1(
 
 
 def prefilter_configuration_sha256(prefilter: PreFilter) -> str:
-    """Bind exact prefilter values without exposing configured strings in a receipt."""
+    """Bind exact prefilter values while preserving the public contract error type."""
 
-    if not isinstance(prefilter, PreFilter):
-        raise TriageReceiptContractError("prefilter must be PreFilter")
-    payload = {
-        "drop_substrings": list(prefilter.drop_substrings),
-        "keep_keywords": list(prefilter.keep_keywords),
-        "min_chars": prefilter.min_chars,
-        "dedup_threshold": prefilter.dedup_threshold,
-        "base_score": prefilter.base_score,
-    }
-    return hashlib.sha256(TRIAGE_CONFIGURATION_DOMAIN + _canonical_json(payload)).hexdigest()
+    try:
+        return _prefilter_configuration_sha256(prefilter)
+    except TypeError as exc:
+        raise TriageReceiptContractError("prefilter must be PreFilter") from exc
 
 
 def escalation_policy_sha256(policy: EscalationPolicy) -> str:
-    """Bind exact pure-policy thresholds and flag behavior."""
+    """Bind exact policy values while preserving the public contract error type."""
 
-    if not isinstance(policy, EscalationPolicy):
-        raise TriageReceiptContractError("policy must be EscalationPolicy")
-    payload = {
-        "drop_if_score_below": policy.drop_if_score_below,
-        "escalate_if_score_at_least": policy.escalate_if_score_at_least,
-        "escalate_if_flagged": policy.escalate_if_flagged,
-    }
-    return hashlib.sha256(TRIAGE_POLICY_DOMAIN + _canonical_json(payload)).hexdigest()
+    try:
+        return _escalation_policy_sha256(policy)
+    except TypeError as exc:
+        raise TriageReceiptContractError("policy must be EscalationPolicy") from exc
 
 
 def encode_triage_batch_receipt_v1(receipt: TriageBatchReceiptV1) -> bytes:
@@ -405,7 +403,10 @@ def _project_result(index: int, result: ItemResult, input_sha256: str) -> Triage
         reason = result.reason
         decision = {"reason_code": reason, "stage": stage}
         flagged = None
-    elif result.stage == "cancelled" and result.reason == "pipeline.callable_cancelled":
+    elif result.stage == "cancelled" and result.reason in {
+        "pipeline.cheap_callable_cancelled",
+        "pipeline.chief_callable_cancelled",
+    }:
         stage = "cancelled"
         reason = result.reason
         decision = {"reason_code": reason, "stage": stage}
@@ -665,7 +666,11 @@ def _require_json_float(value: object, label: str) -> float:
 def _require_score(value: object) -> None:
     if isinstance(value, bool) or not isinstance(value, float):
         raise TriageReceiptContractError("score must be a float")
-    if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+    if (
+        not math.isfinite(value)
+        or _is_negative_zero(value)
+        or not 0.0 <= value <= 1.0
+    ):
         raise TriageReceiptContractError("score must be finite and in the 0..1 range")
 
 
@@ -676,13 +681,21 @@ def _require_usage(tokens: object, cost: object) -> None:
         raise TriageReceiptContractError("total_tokens is outside the V1 range")
     if isinstance(cost, bool) or not isinstance(cost, float):
         raise TriageReceiptContractError("cost_usd must be a float")
-    if not math.isfinite(cost) or not 0.0 <= cost <= MAX_USAGE_COST_USD:
+    if (
+        not math.isfinite(cost)
+        or _is_negative_zero(cost)
+        or not 0.0 <= cost <= MAX_USAGE_COST_USD
+    ):
         raise TriageReceiptContractError("cost_usd is outside the finite V1 range")
 
 
 def _require_digest(value: object, label: str) -> None:
     if not isinstance(value, str) or not SHA256_PATTERN.fullmatch(value):
         raise TriageReceiptContractError(f"{label} must be lowercase SHA-256")
+
+
+def _is_negative_zero(value: float) -> bool:
+    return value == 0.0 and math.copysign(1.0, value) < 0.0
 
 
 def _canonical_json(value: object) -> bytes:

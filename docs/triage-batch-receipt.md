@@ -23,6 +23,11 @@ The summary is derived from those results and must account for every input exact
 receipt also binds the ordered input batch, exact prefilter configuration, exact escalation
 policy, per-result decision digest, tokens, and USD cost.
 
+Those configuration and policy commitments are created by `Pipeline.run` and carried by its
+`Report`. The receipt builder recomputes both commitments from the supplied objects and requires
+exact equality. A completed report therefore cannot be relabelled with a different prefilter or
+escalation policy when minting a receipt.
+
 ## Privacy and authority boundary
 
 The canonical bytes contain only digests, finite scores, strict booleans, bounded non-negative
@@ -66,8 +71,13 @@ payload = encode_triage_batch_receipt_v1(receipt)
 ```
 
 The decoder rejects unknown or duplicate fields, non-canonical JSON, content-identity drift,
-non-finite scores/costs, bool-as-number ambiguity, negative usage, missing result bindings, and
-authority promotion.
+non-finite scores/costs, bool-as-number ambiguity, negative values including IEEE-754 negative
+zero, missing result or provenance bindings, and authority promotion.
+
+Callable-raised cancellation is isolated as a sanitized per-item `cancelled` result on every
+supported Python version. Cancellation of the surrounding batch still propagates and does not
+mint a completed receipt. Malformed cheap/chief tuple arity is classified as invalid output,
+not as a callable exception.
 
 The generated JSON Schema is the closed shape contract. Canonical number form, exact derived
 summary equality, ordered one-input/one-result accounting, and content identities are enforced
