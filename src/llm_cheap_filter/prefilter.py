@@ -6,6 +6,7 @@ duplicates; deciding that with code (not an LLM) is free and instant.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
@@ -33,13 +34,45 @@ class PreFilter:
     dedup_threshold: int = 0
     base_score: float = 0.6
 
+    def __post_init__(self) -> None:
+        if isinstance(self.min_chars, bool) or not isinstance(self.min_chars, int):
+            raise TypeError("min_chars must be an integer")
+        if self.min_chars < 0:
+            raise ValueError("min_chars must be non-negative")
+        if isinstance(self.dedup_threshold, bool) or not isinstance(self.dedup_threshold, int):
+            raise TypeError("dedup_threshold must be an integer")
+        if not 0 <= self.dedup_threshold <= 100:
+            raise ValueError("dedup_threshold must be in the 0..100 range")
+        if isinstance(self.base_score, bool) or not isinstance(self.base_score, (int, float)):
+            raise TypeError("base_score must be numeric")
+        score = float(self.base_score)
+        if (
+            not math.isfinite(score)
+            or (score == 0.0 and math.copysign(1.0, score) < 0.0)
+            or not 0.0 <= score <= 1.0
+        ):
+            raise ValueError("base_score must be finite and in the 0..1 range")
+        self.base_score = score
+        for values, label in (
+            (self.drop_substrings, "drop_substrings"),
+            (self.keep_keywords, "keep_keywords"),
+        ):
+            if not isinstance(values, tuple) or any(
+                not isinstance(value, str) or not value for value in values
+            ):
+                raise TypeError(f"{label} must be a tuple of non-empty strings")
+
     def score(self, text: str, seen: list[str]) -> PreVerdict:
-        low = (text or "").lower().strip()
+        if not isinstance(text, str):
+            raise TypeError("prefilter text must be a string")
+        if not isinstance(seen, list) or any(not isinstance(value, str) for value in seen):
+            raise TypeError("prefilter seen values must be strings")
+        low = text.lower().strip()
         if len(low) < self.min_chars:
             return PreVerdict(False, 0.0, "too_short")
         for s in self.drop_substrings:
             if s.lower() in low:
-                return PreVerdict(False, 0.0, f"noise:{s}")
+                return PreVerdict(False, 0.0, "noise_match")
         if self.keep_keywords and not any(k.lower() in low for k in self.keep_keywords):
             return PreVerdict(False, 0.0, "no_keyword")
         if self.dedup_threshold:

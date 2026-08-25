@@ -19,11 +19,20 @@ The package owns deterministic prefiltering, explicit cheap-to-chief escalation,
 calibration arithmetic. It is not a security control, correctness oracle, provider client, or
 trust source. A cheap-model result cannot lower a deterministic guard decision.
 
+The current review branch also owns the source-level
+[`Triage Batch Receipt V1`](triage-batch-receipt.md): a canonical digest-only accounting
+projection over a completed report. It is unreleased, performs no provider call, and carries
+`authority=none` plus `may_lower_security_decision=false`.
+The component manifest declares this source-owned contract with the closed ecosystem direction
+`provides`; consumers may validate the receipt but gain no execution authority from it.
+
 ## Component-owned documents
 
 - [`README.md`](../README.md): public front door and callable contract.
 - [`project-map.md`](project-map.md): implementation and maintainer map.
 - [`calibration-replay.md`](calibration-replay.md): labeled replay and error accounting.
+- [`triage-batch-receipt.md`](triage-batch-receipt.md): canonical terminal-stage and
+  loss-accounting contract.
 - [`use-cases.md`](use-cases.md): supported workflows and non-goals.
 
 ## Historical portfolio snapshots
@@ -40,10 +49,9 @@ ecosystem roadmap; this repository owns only its support-adapter facts.
 
 ## Ordered next gates
 
-1. Define a triage adapter contract in the Harness Extension SDK while keeping model callables
-   caller-supplied.
+1. Review and integrate the source-owned triage receipt through the Harness Extension SDK while
+   keeping model callables caller-supplied.
 2. Add an explicit package entry point and offline adapter conformance fixtures.
 3. Bind calibration evidence to versioned datasets and declared thresholds.
 4. Pin supported Harness API and package compatibility ranges.
 5. Promote integration beyond `standalone` only after cross-repository suite verification.
-

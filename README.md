@@ -53,17 +53,18 @@ python examples/offline_demo.py
 
 ```text
   [chief   ] SEC approves spot ETF — inflows surge           score=0.90
-  [filtered] Sponsored: trade with XYZ broker                score=0.00  noise:sponsored
-  [filtered] Weekly recap: what moved markets                score=0.00  noise:weekly recap
+  [filtered] Sponsored: trade with XYZ broker                score=0.00  noise_match
+  [filtered] Weekly recap: what moved markets                score=0.00  noise_match
   [chief   ] Company files for bankruptcy, halts operations  score=0.90
-  [filtered] Analyst opinion: why I think it goes up         score=0.00  noise:opinion
+  [filtered] Analyst opinion: why I think it goes up         score=0.00  noise_match
   [chief   ] Major data breach exposes 10M records           score=0.90
-  [filtered] Top 5 coins to watch this week                  score=0.00  noise:top 5
+  [filtered] Top 5 coins to watch this week                  score=0.00  noise_match
   [filtered] SEC approves spot ETF — inflows surge           score=0.00  duplicate
   [cheap   ] Quiet trading day, nothing notable              score=0.40
 
 summary: {'items_in': 9, 'filtered_free': 5, 'ended_cheap': 1, 'escalated_chief': 3,
-          'errors': 0, 'total_tokens': 228, 'total_cost': 0.0188, 'chief_rate': 0.333}
+          'errors': 0, 'cancelled': 0, 'total_tokens': 228, 'total_cost': 0.0188,
+          'chief_rate': 0.333}
 ```
 
 In this committed synthetic example, 5 of 9 items never touched an LLM and 3
@@ -161,7 +162,7 @@ accepts increase.
 **EscalationPolicy** (`policy.py`) — given the cheap score + `flagged`:
 `flagged` or `score ≥ escalate_if_score_at_least` → **chief**; `score < drop_if_score_below` → **drop**; otherwise keep the **cheap** result.
 
-**Pipeline** (`pipeline.py`) — prefilter sequentially (free), then run survivors through the LLM stages concurrently (capped by `concurrency`). `report.summary` gives `items_in / filtered_free / ended_cheap / escalated_chief / errors / total_tokens / total_cost / chief_rate`.
+**Pipeline** (`pipeline.py`) — prefilter sequentially (free), then run survivors through the LLM stages concurrently (capped by `concurrency`). `report.summary` gives `items_in / filtered_free / ended_cheap / escalated_chief / errors / cancelled / total_tokens / total_cost / chief_rate`.
 
 **Analysis helpers** (`analysis.py`) — offline helpers for already-recorded outputs:
 `build_savings_report(report)` estimates actual spend against an all-chief counterfactual,
@@ -193,6 +194,8 @@ python -m pytest -q     # offline, fake LLM, no network
 - [Project map](docs/project-map.md) — modules, what exists today vs not included, reviewer checklist.
 - [Use cases](docs/use-cases.md) — triage, alert fatigue, support, scanning; what this is *not*.
 - [Calibration and replay](docs/calibration-replay.md) — labeled samples, false accepts, false escalates, and report artifacts.
+- [Triage Batch Receipt V1](docs/triage-batch-receipt.md) — canonical digest-only
+  batch accounting, explicit loss stages, and authority boundaries.
 - [Examples guide](examples/README.md) — what each example shows and does not prove.
 - [Harness ecosystem roadmap](https://github.com/krivonosoff161/agentic-security-harness/blob/main/docs/ecosystem-roadmap.md)
   — the canonical public ordering for cross-repository integration work.

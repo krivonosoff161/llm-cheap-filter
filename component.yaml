@@ -17,17 +17,19 @@
     "checks": [],
     "collectors": [],
     "adapters": ["injected-cheap-chief-callables"],
-    "contracts": []
+    "contracts": ["triage-batch-receipt-v1"]
   },
   "consumes": ["caller-supplied asynchronous cheap and chief model callables"],
   "contracts": [
-    {"id": "component-manifest", "version": "1", "direction": "consumes", "required": false}
+    {"id": "component-manifest", "version": "1", "direction": "consumes", "required": false},
+    {"id": "triage-batch-receipt", "version": "1.0", "direction": "provides", "required": false}
   ],
   "docs": [
     {"path": "README.md", "role": "component-front-door"},
     {"path": "docs/component-roadmap.md", "role": "component-owned"},
     {"path": "docs/project-map.md", "role": "component-owned"},
     {"path": "docs/calibration-replay.md", "role": "component-owned"},
+    {"path": "docs/triage-batch-receipt.md", "role": "component-owned"},
     {"path": "docs/security-portfolio-roadmap.md", "role": "historical"},
     {"path": "docs/security-portfolio-roadmap-public.yaml", "role": "historical"},
     {"path": "docs/security-portfolio-roadmap-contract.json", "role": "historical"}
@@ -38,10 +40,11 @@
     "platforms": {"supported": ["linux", "windows"], "tested": ["linux", "windows"]}
   },
   "integration_status": "standalone",
-  "evidence_refs": ["pyproject.toml", "docs/calibration-replay.md", ".github/workflows/tests.yml"],
+  "evidence_refs": ["pyproject.toml", "docs/calibration-replay.md", "docs/triage-batch-receipt.md", "schemas/triage-batch-receipt.v1.manifest.json", ".github/workflows/tests.yml"],
   "claims": [
     "deterministic prefilter and escalation policy",
-    "offline threshold calibration and savings arithmetic"
+    "offline threshold calibration and savings arithmetic",
+    "canonical privacy-minimized triage batch accounting"
   ],
   "non_claims": [
     "security control",
