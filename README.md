@@ -1,6 +1,8 @@
 # llm-cheap-filter
 
-Portfolio ownership and evidence ceilings: [Security Portfolio module contract](docs/security-portfolio-roadmap.md).
+Ecosystem role and current integration status: [component roadmap](docs/component-roadmap.md).
+The public cross-repository plan is owned by the
+[Agentic Security Harness ecosystem roadmap](https://github.com/krivonosoff161/agentic-security-harness/blob/main/docs/ecosystem-roadmap.md).
 
 [![Tests](https://github.com/krivonosoff161/llm-cheap-filter/actions/workflows/tests.yml/badge.svg)](https://github.com/krivonosoff161/llm-cheap-filter/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -14,6 +16,9 @@ judge the rest with a *cheap* model, and escalate only the few that matter to an
 > Generalized from a news-triage workflow. The pattern —
 > *deterministic filter → cheap → chief* — is one of the biggest levers on agentic LLM
 > cost, but only if you measure what it drops and escalates.
+
+`llm-cheap-filter` is currently a standalone support adapter. It is not yet a Harness
+extension, and installing Harness does not install or activate this package.
 
 ---
 
@@ -183,12 +188,14 @@ python -m pytest -q     # offline, fake LLM, no network
 
 ## Docs
 
+- [Component roadmap](docs/component-roadmap.md) — source-owned ecosystem role,
+  platform evidence, historical projections, and integration gates.
 - [Project map](docs/project-map.md) — modules, what exists today vs not included, reviewer checklist.
 - [Use cases](docs/use-cases.md) — triage, alert fatigue, support, scanning; what this is *not*.
 - [Calibration and replay](docs/calibration-replay.md) — labeled samples, false accepts, false escalates, and report artifacts.
 - [Examples guide](examples/README.md) — what each example shows and does not prove.
-- [Portfolio documentation contract](https://github.com/krivonosoff161/krivonosoff161/blob/main/docs/documentation-contract.md)
-  — how this support layer fits into the broader GitHub portfolio.
+- [Harness ecosystem roadmap](https://github.com/krivonosoff161/agentic-security-harness/blob/main/docs/ecosystem-roadmap.md)
+  — the canonical public ordering for cross-repository integration work.
 
 ---
 

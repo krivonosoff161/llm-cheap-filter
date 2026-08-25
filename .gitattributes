@@ -1,1 +1,4 @@
 docs/security-portfolio-roadmap-* text eol=lf
+component.yaml text eol=lf
+docs/component-roadmap.md text eol=lf
+tests/test_ecosystem_component_contract.py text eol=lf
