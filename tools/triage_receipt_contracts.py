@@ -27,6 +27,7 @@ BOUND_FILES = (
     Path("src/llm_cheap_filter/policy.py"),
     Path("src/llm_cheap_filter/prefilter.py"),
     Path("tests/test_triage_receipt.py"),
+    Path("tests/conftest.py"),
     Path("tests/test_analysis.py"),
     Path("tests/test_pipeline.py"),
     Path("docs/triage-batch-receipt.md"),

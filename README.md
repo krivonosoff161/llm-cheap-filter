@@ -17,8 +17,9 @@ judge the rest with a *cheap* model, and escalate only the few that matter to an
 > *deterministic filter → cheap → chief* — is one of the biggest levers on agentic LLM
 > cost, but only if you measure what it drops and escalates.
 
-`llm-cheap-filter` is currently a standalone support adapter. It is not yet a Harness
-extension, and installing Harness does not install or activate this package.
+`llm-cheap-filter` is currently a standalone support adapter. Its source tree builds the
+zero-runtime-dependency distribution candidate `llm-cheap-filter==0.2.0`. It is not yet
+published or automatically activated by Harness.
 
 ---
 
@@ -92,10 +93,14 @@ and drift.
 ```bash
 git clone https://github.com/krivonosoff161/llm-cheap-filter
 cd llm-cheap-filter
-pip install -e .
+python -m build
+python -m pip install dist/llm_cheap_filter-0.2.0-py3-none-any.whl
 ```
 
-Requires **Python 3.9+**. CI covers Ubuntu and Windows; the package is pure Python and has no runtime dependencies.
+For editable development use `python -m pip install -e .[dev]`. Requires **Python 3.9+**.
+CI builds and installs the exact wheel on Ubuntu and Windows. Publication and inclusion in a
+Harness optional-dependency group remain separate release gates. Installing the package never
+calls a provider or activates caller-supplied model functions.
 
 ---
 

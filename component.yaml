@@ -8,8 +8,8 @@
   "summary": "Standalone deterministic prefilter and cheap-to-chief triage support; it cannot establish trust or lower a security decision.",
   "package": {
     "name": "llm-cheap-filter",
-    "version": "0.1.0",
-    "install": "pip install -e .",
+    "version": "0.2.0",
+    "install": "pip install .",
     "entry_points": []
   },
   "owns": {
@@ -40,11 +40,12 @@
     "platforms": {"supported": ["linux", "windows"], "tested": ["linux", "windows"]}
   },
   "integration_status": "standalone",
-  "evidence_refs": ["pyproject.toml", "docs/calibration-replay.md", "docs/triage-batch-receipt.md", "schemas/triage-batch-receipt.v1.manifest.json", ".github/workflows/tests.yml"],
+  "evidence_refs": ["pyproject.toml", "docs/calibration-replay.md", "docs/triage-batch-receipt.md", "schemas/triage-batch-receipt.v1.manifest.json", "tests/test_package_contract.py", "tools/package_smoke.py", ".github/workflows/tests.yml"],
   "claims": [
     "deterministic prefilter and escalation policy",
     "offline threshold calibration and savings arithmetic",
-    "canonical privacy-minimized triage batch accounting"
+    "canonical privacy-minimized triage batch accounting",
+    "source-buildable zero-runtime-dependency Python distribution candidate"
   ],
   "non_claims": [
     "security control",
@@ -52,7 +53,7 @@
     "trust source",
     "permission to lower a guard decision",
     "provider client",
-    "installable Harness extension"
+    "published or automatically activated Harness extension"
   ],
   "authority": "none"
 }

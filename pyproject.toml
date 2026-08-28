@@ -1,23 +1,24 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-cheap-filter"
-version = "0.1.0"
+version = "0.2.0"
 description = "Deterministic pre-filter + cheap→chief escalation pipeline — send only the few items that matter to your expensive model."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "krivonosoff161" }]
 keywords = ["llm", "agents", "cost", "router", "pipeline", "triage", "filter"]
 dependencies = []   # zero runtime dependencies (standard library only)
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "ruff>=0.6"]
+dev = ["build>=1.2.2", "pytest>=7", "ruff>=0.6", "setuptools>=77", "wheel>=0.44"]
 
 [project.urls]
 Homepage = "https://github.com/krivonosoff161/llm-cheap-filter"
+Repository = "https://github.com/krivonosoff161/llm-cheap-filter"
 
 [tool.setuptools.packages.find]
 where = ["src"]
