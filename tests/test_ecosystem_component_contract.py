@@ -93,3 +93,15 @@ def test_front_door_keeps_support_boundary_explicit() -> None:
     assert "Linux and Windows are both supported and tested" in roadmap
     non_claims = set(load_manifest()["non_claims"])
     assert {"security control", "correctness oracle", "trust source"} <= non_claims
+
+
+def test_install_docs_distinguish_source_extra_from_public_packages() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "docs" / "component-roadmap.md").read_text(encoding="utf-8")
+
+    for text in (readme, roadmap):
+        assert "Harness `main`" in text
+        assert "published Harness `v1.3.0`" in text
+    assert "Public\n`pip install agentic-security-harness[filter]` support" in readme
+    assert "never calls a provider" in readme
+    assert "standalone" in roadmap
