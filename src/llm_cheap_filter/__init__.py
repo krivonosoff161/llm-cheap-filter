@@ -29,4 +29,4 @@ __all__ = [
     "decode_triage_batch_receipt_v1", "triage_batch_receipt_v1_json_schema",
     "prefilter_configuration_sha256", "escalation_policy_sha256",
 ]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

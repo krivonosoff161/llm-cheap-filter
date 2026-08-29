@@ -28,3 +28,7 @@ jobs:
         run: python tools/triage_receipt_contracts.py check
       - name: Run tests
         run: python -m pytest -q
+      - name: Build exact distribution artifacts
+        run: python -m build --outdir dist
+      - name: Verify installed wheel contract
+        run: python tools/package_smoke.py dist

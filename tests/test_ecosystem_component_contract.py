@@ -47,8 +47,8 @@ def test_component_manifest_is_closed_and_truthful() -> None:
     package = manifest["package"]
     assert package == {
         "name": "llm-cheap-filter",
-        "version": "0.1.0",
-        "install": "pip install -e .",
+        "version": "0.2.0",
+        "install": "pip install .",
         "entry_points": [],
     }
     compatibility = manifest["compatibility"]
