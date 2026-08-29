@@ -8,3 +8,6 @@ tests/conftest.py text eol=lf
 tools/package_smoke.py text eol=lf
 schemas/triage-batch-receipt.v1.manifest.json text eol=lf
 schemas/triage-batch-receipt.v1.schema.json text eol=lf
+.github/workflows/*.yml text eol=lf
+tools/normalize_sdist.py text eol=lf
+tools/verify_release_index.py text eol=lf

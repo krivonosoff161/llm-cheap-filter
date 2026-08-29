@@ -32,3 +32,36 @@ jobs:
         run: python -m build --outdir dist
       - name: Verify installed wheel contract
         run: python tools/package_smoke.py dist
+
+
+  release-contract:
+    name: release artifact closure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - run: python -m pip install ".[dev]"
+      - name: Build and verify the closed release artifact set
+        run: |
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          mkdir dist reproducibility-check
+          python -m build --no-isolation --outdir dist .
+          python -m build --no-isolation --outdir reproducibility-check .
+          for output in dist reproducibility-check; do
+            for artifact in "$output"/*.tar.gz; do
+              python tools/normalize_sdist.py "$artifact" --epoch "$SOURCE_DATE_EPOCH"
+            done
+          done
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          def closure(root):
+              return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in root.iterdir() if path.is_file()}
+          if closure(Path("dist")) != closure(Path("reproducibility-check")):
+              raise SystemExit("release artifacts are not reproducible")
+          PY
+          python tools/verify_release_index.py --dist-dir dist --expected llm-cheap-filter==0.2.0
