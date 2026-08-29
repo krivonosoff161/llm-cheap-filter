@@ -9,7 +9,7 @@
   "package": {
     "name": "llm-cheap-filter",
     "version": "0.2.0",
-    "install": "pip install .",
+    "install": "pip install llm-cheap-filter==0.2.0",
     "entry_points": []
   },
   "owns": {
@@ -45,7 +45,7 @@
     "deterministic prefilter and escalation policy",
     "offline threshold calibration and savings arithmetic",
     "canonical privacy-minimized triage batch accounting",
-    "source-buildable zero-runtime-dependency Python distribution candidate"
+    "published zero-runtime-dependency Python distribution"
   ],
   "non_claims": [
     "security control",
@@ -53,7 +53,7 @@
     "trust source",
     "permission to lower a guard decision",
     "provider client",
-    "published or automatically activated Harness extension"
+    "automatically invoked or activated Harness extension"
   ],
   "authority": "none"
 }

@@ -18,8 +18,8 @@ judge the rest with a *cheap* model, and escalate only the few that matter to an
 > cost, but only if you measure what it drops and escalates.
 
 `llm-cheap-filter` is currently a standalone support adapter. Its source tree builds the
-zero-runtime-dependency distribution candidate `llm-cheap-filter==0.2.0`. It is not yet
-published or automatically activated by Harness.
+zero-runtime-dependency distribution `llm-cheap-filter==0.2.0`, published on PyPI. It is
+not automatically activated or invoked by Harness.
 
 ---
 
@@ -91,19 +91,14 @@ and drift.
 ## Install
 
 ```bash
-git clone https://github.com/krivonosoff161/llm-cheap-filter
-cd llm-cheap-filter
-python -m build
-python -m pip install dist/llm_cheap_filter-0.2.0-py3-none-any.whl
+python -m pip install llm-cheap-filter==0.2.0
+python -m pip install "agentic-security-harness[filter]==1.4.0"
 ```
 
 For editable development use `python -m pip install -e .[dev]`. Requires **Python 3.9+**.
-CI builds and installs the exact wheel on Ubuntu and Windows. Harness `main` declares a
-source-only `filter` extra, but this package is not on PyPI and published Harness `v1.3.0`
-metadata does not contain that extra. Public
-`pip install agentic-security-harness[filter]` support is therefore unavailable; package
-publication and newer Harness package metadata remain separate release gates. Installing
-the package never calls a provider or activates caller-supplied model functions.
+CI builds and installs the exact wheel on Ubuntu and Windows. Published Harness `v1.4.0`
+exposes it through the passive `filter` extra. Installing the package never calls a provider
+or activates caller-supplied model functions.
 
 ---
 
