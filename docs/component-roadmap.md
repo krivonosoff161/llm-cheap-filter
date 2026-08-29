@@ -9,10 +9,9 @@ cross-repository phases belong to the
 
 - Kind: `support_adapter`.
 - Integration: `standalone`; Harness does not discover or invoke this package as an extension.
-- Package candidate: `llm-cheap-filter` v0.2.0, buildable from source with
-  `python -m build`; exact publication is still a separate release gate. Harness `main`
-  declares a source-only `filter` extra, while published Harness `v1.3.0` metadata does
-  not contain it.
+- Package: public distribution `llm-cheap-filter==0.2.0`. Published Harness `v1.4.0`
+  exposes it through the passive `filter` extra; Harness still does not invoke caller-supplied
+  model functions.
 - Python: `>=3.9`.
 - Platforms: Linux and Windows are both supported and tested in CI.
 - Authority: `none`.
@@ -21,9 +20,9 @@ The package owns deterministic prefiltering, explicit cheap-to-chief escalation,
 calibration arithmetic. It is not a security control, correctness oracle, provider client, or
 trust source. A cheap-model result cannot lower a deterministic guard decision.
 
-The current review branch also owns the source-level
+The current release also owns the
 [`Triage Batch Receipt V1`](triage-batch-receipt.md): a canonical digest-only accounting
-projection over a completed report. It is unreleased, performs no provider call, and carries
+projection over a completed report. It performs no provider call and carries
 `authority=none` plus `may_lower_security_decision=false`.
 The component manifest declares this source-owned contract with the closed ecosystem direction
 `provides`; consumers may validate the receipt but gain no execution authority from it.
@@ -51,10 +50,9 @@ ecosystem roadmap; this repository owns only its support-adapter facts.
 
 ## Ordered next gates
 
-1. **Source integration complete.** Harness pins the source-owned triage receipt and
+1. **Public integration released.** Harness pins the source-owned triage receipt and
    dependency coordinate while keeping model callables caller-supplied.
-2. Publish the exact tested `llm-cheap-filter` artifacts through a separately approved
-   release gate.
+2. Keep the exact tested `llm-cheap-filter` artifacts and Harness dependency pin aligned.
 3. Add an explicit Harness adapter entry point only if the built-in receipt-auditor boundary
    is insufficient; installation must not invoke model callables.
 4. Bind calibration evidence to versioned datasets and declared thresholds.

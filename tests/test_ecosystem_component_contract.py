@@ -48,7 +48,7 @@ def test_component_manifest_is_closed_and_truthful() -> None:
     assert package == {
         "name": "llm-cheap-filter",
         "version": "0.2.0",
-        "install": "pip install .",
+        "install": "pip install llm-cheap-filter==0.2.0",
         "entry_points": [],
     }
     compatibility = manifest["compatibility"]
@@ -95,13 +95,14 @@ def test_front_door_keeps_support_boundary_explicit() -> None:
     assert {"security control", "correctness oracle", "trust source"} <= non_claims
 
 
-def test_install_docs_distinguish_source_extra_from_public_packages() -> None:
+def test_install_docs_bind_public_package_and_passive_extra() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     roadmap = (ROOT / "docs" / "component-roadmap.md").read_text(encoding="utf-8")
 
     for text in (readme, roadmap):
-        assert "Harness `main`" in text
-        assert "published Harness `v1.3.0`" in text
-    assert "Public\n`pip install agentic-security-harness[filter]` support" in readme
+        assert "Harness `v1.4.0`" in text
+        assert "passive `filter` extra" in text
+    assert "agentic-security-harness[filter]==1.4.0" in readme
+    assert "llm-cheap-filter==0.2.0" in readme
     assert "never calls a provider" in readme
     assert "standalone" in roadmap
