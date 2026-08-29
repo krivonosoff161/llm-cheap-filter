@@ -1,0 +1,320 @@
+name: Release and publish package
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Exact tag produced by this workflow
+        required: true
+        type: string
+      release_run_id:
+        description: Successful tag-triggered run id
+        required: true
+        type: string
+      target:
+        description: Package index target
+        required: true
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-release-${{ github.ref }}-${{ inputs.target || 'build' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and attest release artifacts
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Verify tag and package identities
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          EXPECTED_PACKAGES: '{"llm-cheap-filter":"0.2.0"}'
+          PROJECT_FILES: '["pyproject.toml"]'
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+          tag = os.environ["RELEASE_TAG"]
+          if re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) is None:
+              raise SystemExit("tag must be canonical vMAJOR.MINOR.PATCH")
+          expected = json.loads(os.environ["EXPECTED_PACKAGES"])
+          observed = {}
+          for filename in json.loads(os.environ["PROJECT_FILES"]):
+              project = tomllib.loads(Path(filename).read_text("utf-8"))["project"]
+              observed[project["name"]] = project["version"]
+          if observed != expected:
+              raise SystemExit(f"package identity mismatch: expected={expected}, observed={observed}")
+          root = tomllib.loads(Path("pyproject.toml").read_text("utf-8"))["project"]["version"]
+          if tag != f"v{root}":
+              raise SystemExit(f"tag {tag!r} does not match root version {root!r}")
+          PY
+      - name: Install release verification tools
+        run: python -m pip install ".[dev]"
+      - name: Run release gates
+        run: |
+          python -m ruff check --no-cache .
+          python tools/triage_receipt_contracts.py check
+          python -m pytest -q -p no:cacheprovider
+      - name: Build reproducible artifact closure
+        run: |
+          set -euo pipefail
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$GITHUB_SHA")"
+          mkdir dist reproducibility-check
+          python -m build --no-isolation --outdir dist .
+          python -m build --no-isolation --outdir reproducibility-check .
+          for output in dist reproducibility-check; do
+            for artifact in "$output"/*.tar.gz; do
+              python tools/normalize_sdist.py "$artifact" --epoch "$SOURCE_DATE_EPOCH"
+            done
+          done
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          def closure(root):
+              return {
+                  path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in root.iterdir() if path.is_file()
+              }
+          expected = closure(Path("dist"))
+          observed = closure(Path("reproducibility-check"))
+          if observed != expected:
+              raise SystemExit(f"reproducibility mismatch: expected={expected}, observed={observed}")
+          PY
+          python tools/verify_release_index.py --dist-dir dist --expected llm-cheap-filter==0.2.0
+      - name: Isolated installed-wheel metadata smoke
+        env:
+          EXPECTED_PACKAGES: '{"llm-cheap-filter":"0.2.0"}'
+        run: |
+          set -euo pipefail
+          python -m venv release-smoke
+          release-smoke/bin/python -m pip install --no-index --no-deps dist/*.whl
+          release-smoke/bin/python - <<'PY'
+          import importlib.metadata as metadata
+          import json
+          import os
+          expected = json.loads(os.environ["EXPECTED_PACKAGES"])
+          for name, version in expected.items():
+              if metadata.version(name) != version:
+                  raise SystemExit(f"installed metadata mismatch for {name}")
+              for requirement in metadata.requires(name) or ():
+                  lowered = requirement.lower()
+                  if " @ " in lowered or "file:" in lowered or "git+" in lowered:
+                      raise SystemExit(f"direct URL dependency is forbidden: {name}")
+          PY
+      - name: Write checksums
+        run: cd dist && sha256sum *.tar.gz *.whl > SHA256SUMS
+      - name: Attest exact release subjects
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.whl
+            dist/SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-dist-${{ github.ref_name }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  github-release:
+    name: Create verified GitHub Release
+    needs: build
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-dist-${{ github.ref_name }}
+          path: dist
+      - name: Verify and publish the closed asset set
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum --check SHA256SUMS
+          cd ..
+          for artifact in dist/*.tar.gz dist/*.whl dist/SHA256SUMS; do
+            gh attestation verify "$artifact" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-package.yml" \
+              --source-ref "$GITHUB_REF" \
+              --source-digest "$GITHUB_SHA" \
+              --cert-oidc-issuer "https://token.actions.githubusercontent.com" \
+              --predicate-type "https://slsa.dev/provenance/v1" \
+              --deny-self-hosted-runners
+          done
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "${GITHUB_REPOSITORY#*/} $GITHUB_REF_NAME" \
+            --notes "Passive package release. Installation grants no activation, binding, provider access, execution authority, deployment, or enforcement."
+
+  publish:
+    name: Publish exact attested artifacts to ${{ inputs.target }}
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.target }}
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Verify selected tag and source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/tags/$RELEASE_TAG"
+          run_json="$RUNNER_TEMP/release-run.json"
+          gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID" > "$run_json"
+          python - "$run_json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          run = json.loads(Path(sys.argv[1]).read_text("utf-8"))
+          expected = {
+              "conclusion": "success",
+              "event": "push",
+              "head_sha": os.environ["GITHUB_SHA"],
+              "head_branch": os.environ["RELEASE_TAG"],
+              "path": ".github/workflows/release-package.yml",
+              "status": "completed",
+          }
+          observed = {key: run.get(key) for key in expected}
+          if observed != expected:
+              raise SystemExit(f"source run mismatch: expected={expected}, observed={observed}")
+          PY
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+          name: release-dist-${{ inputs.release_tag }}
+          path: dist
+      - name: Verify checksums, package closure, attestations, and TestPyPI promotion source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum --check SHA256SUMS
+          cd ..
+          python tools/verify_release_index.py --dist-dir dist --expected llm-cheap-filter==0.2.0
+          for artifact in dist/*.tar.gz dist/*.whl dist/SHA256SUMS; do
+            gh attestation verify "$artifact" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-package.yml" \
+              --source-ref "refs/tags/$RELEASE_TAG" \
+              --source-digest "$GITHUB_SHA" \
+              --cert-oidc-issuer "https://token.actions.githubusercontent.com" \
+              --predicate-type "https://slsa.dev/provenance/v1" \
+              --deny-self-hosted-runners
+          done
+          if test "${{ inputs.target }}" = "pypi"; then
+            python tools/verify_release_index.py --dist-dir dist --expected llm-cheap-filter==0.2.0 \
+              --host test.pypi.org --attempts 3 --wait-seconds 10
+          fi
+          mkdir publish-dist
+          cp dist/*.tar.gz dist/*.whl publish-dist/
+      - name: Publish to TestPyPI with OIDC
+        if: inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: publish-dist/
+          repository-url: https://test.pypi.org/legacy/
+          verbose: false
+      - name: Publish to PyPI with OIDC
+        if: inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: publish-dist/
+          verbose: false
+      - name: Verify published index hashes
+        env:
+          TARGET_HOST: ${{ inputs.target == 'testpypi' && 'test.pypi.org' || 'pypi.org' }}
+        run: |
+          python tools/verify_release_index.py --dist-dir dist --expected llm-cheap-filter==0.2.0 \
+            --host "$TARGET_HOST" --attempts 8 --wait-seconds 15
+
+  smoke:
+    name: Clean install ${{ inputs.target }} (${{ matrix.os }})
+    needs: publish
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Install exact packages from the selected public index
+        shell: bash
+        env:
+          INDEX_URL: ${{ inputs.target == 'testpypi' && 'https://test.pypi.org/simple/' || 'https://pypi.org/simple/' }}
+          EXPECTED_PACKAGES: '{"llm-cheap-filter":"0.2.0"}'
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir \
+            --index-url "$INDEX_URL" \
+            --extra-index-url https://pypi.org/simple/ \
+            "llm-cheap-filter==0.2.0"
+          python - <<'PY'
+          import importlib.metadata as metadata
+          import json
+          import os
+          expected = json.loads(os.environ["EXPECTED_PACKAGES"])
+          for name, version in expected.items():
+              assert metadata.version(name) == version
+          PY
+          python - <<'PY'
+          import llm_cheap_filter
+          assert llm_cheap_filter.__version__ == "0.2.0"
+          PY
