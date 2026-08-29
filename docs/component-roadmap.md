@@ -10,7 +10,9 @@ cross-repository phases belong to the
 - Kind: `support_adapter`.
 - Integration: `standalone`; Harness does not discover or invoke this package as an extension.
 - Package candidate: `llm-cheap-filter` v0.2.0, buildable from source with
-  `python -m build`; exact publication is still a separate release gate.
+  `python -m build`; exact publication is still a separate release gate. Harness `main`
+  declares a source-only `filter` extra, while published Harness `v1.3.0` metadata does
+  not contain it.
 - Python: `>=3.9`.
 - Platforms: Linux and Windows are both supported and tested in CI.
 - Authority: `none`.
@@ -49,12 +51,13 @@ ecosystem roadmap; this repository owns only its support-adapter facts.
 
 ## Ordered next gates
 
-1. Review and integrate the source-owned triage receipt through the Harness Extension SDK while
-   keeping model callables caller-supplied.
+1. **Source integration complete.** Harness pins the source-owned triage receipt and
+   dependency coordinate while keeping model callables caller-supplied.
 2. Publish the exact tested `llm-cheap-filter` artifacts through a separately approved
    release gate.
 3. Add an explicit Harness adapter entry point only if the built-in receipt-auditor boundary
    is insufficient; installation must not invoke model callables.
 4. Bind calibration evidence to versioned datasets and declared thresholds.
 5. Pin supported Harness API and package compatibility ranges.
-6. Promote integration beyond `standalone` only after cross-repository suite verification.
+6. Keep integration `standalone` unless a later explicit adapter contract justifies
+   promotion; source conformance alone does not change integration status.

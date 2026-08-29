@@ -98,9 +98,12 @@ python -m pip install dist/llm_cheap_filter-0.2.0-py3-none-any.whl
 ```
 
 For editable development use `python -m pip install -e .[dev]`. Requires **Python 3.9+**.
-CI builds and installs the exact wheel on Ubuntu and Windows. Publication and inclusion in a
-Harness optional-dependency group remain separate release gates. Installing the package never
-calls a provider or activates caller-supplied model functions.
+CI builds and installs the exact wheel on Ubuntu and Windows. Harness `main` declares a
+source-only `filter` extra, but this package is not on PyPI and published Harness `v1.3.0`
+metadata does not contain that extra. Public
+`pip install agentic-security-harness[filter]` support is therefore unavailable; package
+publication and newer Harness package metadata remain separate release gates. Installing
+the package never calls a provider or activates caller-supplied model functions.
 
 ---
 
